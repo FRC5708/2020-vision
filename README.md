@@ -1,4 +1,6 @@
-# FRC Team 5708's camera and vision code
+# FRC Team 5708's camera and vision code for Infinite Recharge
+
+Right now it's just a fork of the 2019 repo
 
 ## 	Streaming how to
 
