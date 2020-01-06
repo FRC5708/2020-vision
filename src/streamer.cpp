@@ -20,7 +20,7 @@
 #include <arpa/inet.h>
 
 
-using std::cout; using std::endl; using std::string;
+using std::cout; using std::endl; using std::string; using std::vector;
 
 pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 	pid_t pid = fork();
@@ -56,34 +56,75 @@ void Streamer::handleCrash(pid_t pid) {
 	}
 }
 
-void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string port, string file) {
+void addSrc(std::stringstream& cmd, const string file, int width, int height) {
+	cmd << " v4l2src device=" << file << 
+	" video/x-raw-yuv, width=" << width << ",height=" << height
+	 << ",framerate=30/1 ! videoscale ! videoconvert "; // might need queue at the end
+}
+
+void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string port, vector<string> files) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
-	
+	assert(files.size() > 0);
+
 	// Codec is specific to the raspberry pi's gpu
 	string codec = "omxh264enc";
-	string gstreamCommand = "gst-launch-1.0";
+	string gstreamCommand = "gst-launch-1.0";	
 
-	if (!secondCameraDev.empty()) bitrate /= 2;
-	
 	std::stringstream command;
-	command << gstreamCommand << " v4l2src device=" << file << " ! videoscale ! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
-	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! gdppay ! udpsink"
+
+	command << gstreamCommand;
+	addSrc(command, files[0], width, height);
+
+	int outputWidth, outputHeight;
+
+	// https://www.technomancy.org/gstreamer/playing-two-videos-side-by-side/
+
+	if (files.size() == 1) {
+		outputWidth = width; outputHeight = height;
+	}
+	else if (files.size() == 2) {
+		outputWidth = width*2; outputHeight = height;
+
+		command << " ! videobox right=-" << width << " ! videomixer name=mix ";
+	}
+	else if (files.size() == 3 || files.size() == 4) {
+		outputWidth = width*2; outputHeight = height*2;
+		command << " ! videobox right=-" << width << " bottom=-" << height
+		 << " ! videomixer name=mix ";
+	}
+	else {
+		std::cerr << "too many cameras!" << std::endl;
+		return;
+	}
+
+	command << " ! queue ! " << codec << " target-bitrate=" << bitrate <<
+	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
+	<< ",framerate=30/1,profile=high ! rtph264pay ! gdppay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
+
+	if (files.size() == 2) {
+		addSrc(command, files[1], width, height);
+		command << " ! videobox left=-" << width << " ! mix ";
+	}
+	else if (files.size() == 3 || files.size() == 4) {
+		addSrc(command, files[1], width, height);
+		command << " ! videobox left=-" << width << " bottom=-" << height << " ! mix ";
+		
+		addSrc(command, files[2], width, height);
+		command << " ! videobox right=-" << width << " top=-" << height << " ! mix ";
+
+		if (files.size() == 4) {
+			addSrc(command, files[2], width, height);
+			command << " ! videobox left=-" << width << " top=-" << height << " ! mix ";
+		}
+	}
 
 	string strCommand = command.str();
 	
 	pid_t pid = runCommandAsync(strCommand, servFd);
 
-	gstInstances.push_back({ pid, file, strCommand });
+	gstInstances.push_back({ pid, strCommand });
 }
-
-// Unused
-void Streamer::launchFFmpeg() {
-	ffmpegPID = runCommandAsync(
-		"ffmpeg -f v4l2 -pix_fmt yuyv422 -video_size  800x448 -i /dev/video0 -f v4l2 /dev/video1 -f v4l2 /dev/video2"
-	, servFd);
-}
-
 
 // Finds a video device whose name contains cmp
 string getVideoDeviceWithString(string cmp) {
@@ -107,32 +148,28 @@ string getVideoDeviceWithString(string cmp) {
 void Streamer::start() {
 	
 	// These are the model numbers of our cameras
-	visionCameraDev = getVideoDeviceWithString("920");
-	secondCameraDev = getVideoDeviceWithString("C525");
+	cameraDevs.push_back(getVideoDeviceWithString("920"));
+	cameraDevs.push_back(getVideoDeviceWithString("C525"));
 	
 	loopbackDev = getVideoDeviceWithString("Dummy");
 
-	if (secondCameraDev.empty()) {
-		std::cerr << "Warning: second camera not found" << std::endl;
+	
+	std::cout << "Cameras detected: " << cameraDevs.size();
+		
+	if (cameraDevs.size() == 0) {
+		std::cerr << "Camera not found" << std::endl;
+		exit(1);
 	}
-	if (visionCameraDev.empty()) {
-		if (!secondCameraDev.empty()) {
-			visionCameraDev = secondCameraDev;
-			secondCameraDev = "";
-			std::cerr << "Warning: Main Camera not found. Using second camera as main camera." << std::endl;
-		}
-		else {
-			std::cerr << "Camera not found" << std::endl;
-			exit(1);
-		}
+	
+	std::cout << "main (vision) camera: " << cameraDevs[0] << std::endl;
+	for (int i = 0; i < cameraDevs.size(); ++i) {
+		std::cout << "Camera " << i << ": " << cameraDevs[i] << std::endl;
 	}
-	std::cout << "main camera: " << visionCameraDev << std::endl;
 
-	if (secondCameraDev.empty()) {
+	if (cameraDevs.size() == 1) {
 		this->width = 800; this->height = 448;
 	}
 	else {
-		std::cout << "second camera: " << secondCameraDev << std::endl;
 		this->width = 640; this->height = 360;
 	}
 	if (loopbackDev.empty()) {
@@ -141,7 +178,7 @@ void Streamer::start() {
 	}
 	else std::cout << "video loopback device: " << loopbackDev << std::endl;
 
-	camera.openReader(width, height, visionCameraDev.c_str());
+	visionCamera.openReader(width, height, cameraDevs[0].c_str());
 	videoWriter.openWriter(width, height, loopbackDev.c_str());
 
 	// Start the thread that listens for the signal from the driver station
@@ -216,8 +253,9 @@ void Streamer::start() {
 			getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
     		0,0,NI_NUMERICHOST);
 
-			launchGStreamer(strAddr, atoi(bitrate), "5809", loopbackDev);
-			if (!secondCameraDev.empty()) launchGStreamer(strAddr, atoi(bitrate), "5804", secondCameraDev);
+			vector<string> outputVideoDevs = cameraDevs;
+			outputVideoDevs[0] = loopbackDev;
+			launchGStreamer(strAddr, atoi(bitrate), "5809", outputVideoDevs);
 
 			// It was planned to draw an overlay over the video feed in the driver station.
 			// This sends the overlay data.
@@ -239,7 +277,7 @@ void Streamer::setDrawTargets(std::vector<VisionTarget>* drawTargets) {
 // get frame in the color space that the vision processing uses
 cv::Mat Streamer::getBGRFrame() {
 	cv::Mat frame;
-	cvtColor(camera.getMat(), frame, cv::COLOR_YUV2BGR_YUYV);
+	cvtColor(visionCamera.getMat(), frame, cv::COLOR_YUV2BGR_YUYV);
 	return frame;
 }
 
@@ -248,9 +286,9 @@ void Streamer::setLowExposure(bool value) {
 		lowExposure = value;
 		if (lowExposure) {
 			// probably could be lower, but it's probably sufficent
-			camera.setExposureVals(false, 50);
+			visionCamera.setExposureVals(false, 50);
 		}
-		else camera.setExposureVals(true, 50);
+		else visionCamera.setExposureVals(true, 50);
 	}
 }
 
@@ -260,14 +298,14 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 	while (true) {
 
 		//auto startTime = clock.now();
-		camera.grabFrame();
+		visionCamera.grabFrame();
 		//auto writeStart = clock.now();
 		//std::cout << "grabFrame took: " << std::chrono::duration_cast<std::chrono::milliseconds>
 		//	(writeStart - startTime).count() << " ms" << endl;
 
 
 		// Draw an overlay on the frame before handing it off to gStreamer
-		cv::Mat drawnOn = camera.getMat().clone();
+		cv::Mat drawnOn = visionCamera.getMat().clone();
 		for (auto i = drawTargets.begin(); i < drawTargets.end(); ++i) {
 			drawVisionPoints(i->drawPoints, drawnOn);
 		}

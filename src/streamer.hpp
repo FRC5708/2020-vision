@@ -15,17 +15,17 @@ class Streamer {
 
 	struct GstInstance {
 		pid_t pid;
-		std::string file;
 		std::string command;
 	};
 	std::vector<GstInstance> gstInstances;
 	
 	volatile bool handlingLaunchRequest = false;
-	void launchGStreamer(const char* recieveAddress, int bitrate, std::string port, std::string file);
+	void launchGStreamer(const char* recieveAddress, int bitrate, std::string port, std::vector<std::string> files);
 
-	std::string visionCameraDev, secondCameraDev, loopbackDev;
+	//std::string visionCameraDev, secondCameraDev, loopbackDev;
+	std::vector<std::string> cameraDevs;
+	std::string loopbackDev;
 
-	pid_t ffmpegPID = 0;
 	int servFd;
 
 	std::vector<VisionTarget> drawTargets;
@@ -33,8 +33,7 @@ class Streamer {
 
 	VideoWriter videoWriter;
 
-	VideoReader camera;
-	int cameraIdx;
+	VideoReader visionCamera;
 
 public:
 	int width, height;
@@ -48,7 +47,6 @@ public:
 	cv::Mat getBGRFrame();
 
 	void run(std::function<void(void)> frameNotifier); // run thread
-	void launchFFmpeg(); // for loopback video
 
 	bool lowExposure = false;
 	void setLowExposure(bool value);
