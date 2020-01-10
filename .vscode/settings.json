@@ -70,6 +70,14 @@
         "list": "cpp",
         "optional": "cpp",
         "__errc": "cpp",
-        "__node_handle": "cpp"
+        "__node_handle": "cpp",
+        "random": "cpp",
+        "stack": "cpp",
+        "bit": "cpp",
+        "codecvt": "cpp",
+        "numeric": "cpp",
+        "filesystem": "cpp",
+        "memory_resource": "cpp",
+        "cinttypes": "cpp"
     }
 }

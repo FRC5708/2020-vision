@@ -17,17 +17,24 @@
             "configurationProvider": "vscode-wpilib"
         },
         {
-            "name": "Raspberry Pi",
+            "name": "Raspberry Pi w/ Mac FRC gcc",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/../pi_include/usr/include/**",
-                "${workspaceFolder}/../pi_include/usr/include/arm-linux-gnueabihf/**",
-                "/usr/local/include/opencv4"
+                "${workspaceFolder}/../pi_include/usr/include/",
+                "${workspaceFolder}/../pi_include/usr/include/**"
             ],
-            "compilerPath": "/usr/bin/gcc",
+            "compilerPath": "~/wpilib/2020/roborio/bin/arm-frc2020-linux-gnueabi-gcc",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-x64"
+            "intelliSenseMode": "gcc-x64",
+            "compilerArgs": [
+                "-mcpu=cortex-m4",
+				"-mthumb",
+				"-mfloat-abi=hard"
+            ],
+            "defines": [
+                "__ARM_PCS_VFP"
+            ]
         },
         {
             "name": "WSL",

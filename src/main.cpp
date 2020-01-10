@@ -29,9 +29,10 @@
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
+// Using a namespace to isolate global variables
 namespace vision5708Main {
 
-	// when false, drastically slows down vision processing
+	// when false, drastically slows down vision processing for thermal reasons
 	volatile bool visionEnabled = false;
 	
 	std::vector<VisionTarget> lastResults;
@@ -39,6 +40,7 @@ namespace vision5708Main {
 	std::chrono::steady_clock clock;
 	auto currentFrameTime = clock.now();
 	
+	// c++ doesn't have real semaphores, so we must use the jank condition_variable to synchronize threads.
 	std::mutex waitMutex; 
 	std::condition_variable condition;
 
@@ -115,7 +117,7 @@ namespace vision5708Main {
 			auto lastFrameTime = currentFrameTime;
 			lastResults = doVision(streamer.getBGRFrame());
 
-			streamer.setDrawTargets(&lastResults);
+			//streamer.setDrawTargets(&lastResults);
 			
 			std::vector<VisionData> calcs;
 			calcs.reserve(lastResults.size());
@@ -190,6 +192,8 @@ namespace vision5708Main {
 		
 		cout << "camera matrix set to: " << calib::cameraMatrix << endl;
 	}
+
+	// Test the vision system, feeding it a static image.
 	void doImageTesting(const char* path) {
 		isImageTesting = true; verboseMode = true;
 				
@@ -216,9 +220,14 @@ namespace vision5708Main {
 	void chldHandler(int sig, siginfo_t *info, void *ucontext) {
 		streamer.handleCrash(info->si_pid);
 	}
-
+	void drawTargets(cv::Mat drawOn) {
+		for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
+			drawVisionPoints(i->drawPoints, drawOn);
+		}
+	}
 	int main(int argc, char** argv) {
-		
+		// Enable or disable verbose output
+		verboseMode = true;
 		
 		if (argc >= 3) {
 			readCalibParams(argv[1]);
@@ -239,16 +248,16 @@ namespace vision5708Main {
 			}
 		}
 		else {
-			cerr << "usage: " << argv[0] << "[test image][calibration parameters]" << endl;
+			cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 			return 1;
 		}
-        
+        // Enables the v4l2loopback kernel module if it hasn't already
         system("/home/pi/bin/run_setup_v4l2loopback");
-		verboseMode = true;
-
 		
 		// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 		signal(SIGPIPE, SIG_IGN);
+
+		streamer.annotateFrame = drawTargets;
 
 		streamer.start();
 

@@ -45,7 +45,6 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 	else return pid;
 }
 
-// Called when SIGCHLD is recieved
 void Streamer::handleCrash(pid_t pid) {
 	if (!handlingLaunchRequest) {
 		for (auto i : gstInstances) {
@@ -127,34 +126,56 @@ void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string p
 }
 
 // Finds a video device whose name contains cmp
-string getVideoDeviceWithString(string cmp) {
+vector<string> getVideoDeviceWithString(string cmp) {
 
 	FILE* videos = popen(("for I in /sys/class/video4linux/*; do if grep -q '" 
-	+ cmp + "' $I/name; then basename $I; exit; fi; done").c_str(), "r");
+	+ cmp + "' $I/name; then basename $I; fi; done").c_str(), "r");
 
+	vector<string> devnames;
 	char output[1035];
-	string devname;
+	
 	while (fgets(output, sizeof(output), videos) != NULL) {
 		// videoX
-		if (strlen(output) >= 6) devname = output;
+		if (strlen(output) >= 6) devnames.push_back(output);
 		// remove newlines
-		devname.erase(std::remove(devname.begin(), devname.end(), '\n'), devname.end());
+		devnames.back().erase(std::remove(devnames.back().begin(), devnames.back().end(), '\n'), devnames.back().end());
 	}
+	
 	pclose(videos);
-	if (!devname.empty()) return "/dev/" + devname;
-	else return "";
+
+	for (auto i = devnames.begin(); i < devnames.end(); ++i) {
+		*i = "/dev/" + *i;
+	}
+	return devnames;
 }
+
+// These are the model numbers of our cameras
+// They are matched with device names from sysfs
+// Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
+
+vector<string> cameraNames = {
+	"920", "C525"
+};
 
 void Streamer::start() {
 	
-	// These are the model numbers of our cameras
-	cameraDevs.push_back(getVideoDeviceWithString("920"));
-	cameraDevs.push_back(getVideoDeviceWithString("C525"));
-	
-	loopbackDev = getVideoDeviceWithString("Dummy");
+	vector<string> loopbackDevList = getVideoDeviceWithString("Dummy");
+	if (loopbackDevList.empty()) {
+		std::cerr << "v4l2loopback device not found" << std::endl;
+		exit(1);
+	}
+	else {
+		loopbackDev = loopbackDevList[0];
+		std::cout << "video loopback device: " << loopbackDev << std::endl;
+	}
 
+
+	for (auto i = cameraNames.begin(); i < cameraNames.end(); ++i) {
+		vector<string> namedCameras = getVideoDeviceWithString(*i);
+		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
+	}
 	
-	std::cout << "Cameras detected: " << cameraDevs.size();
+	std::cout << "Cameras detected: " << cameraDevs.size() << std::endl;
 		
 	if (cameraDevs.size() == 0) {
 		std::cerr << "Camera not found" << std::endl;
@@ -172,11 +193,6 @@ void Streamer::start() {
 	else {
 		this->width = 640; this->height = 360;
 	}
-	if (loopbackDev.empty()) {
-		std::cerr << "v4l2loopback device not found" << std::endl;
-		exit(1);
-	}
-	else std::cout << "video loopback device: " << loopbackDev << std::endl;
 
 	visionCamera.openReader(width, height, cameraDevs[0].c_str());
 	videoWriter.openWriter(width, height, loopbackDev.c_str());
@@ -269,11 +285,6 @@ void Streamer::start() {
 	
 }
 
-void Streamer::setDrawTargets(std::vector<VisionTarget>* drawTargets) {
-	this->drawTargets = *drawTargets;
-	//if (computer_udp) computer_udp->sendDraw(&(*drawTargets)[0].drawPoints);
-}
-
 // get frame in the color space that the vision processing uses
 cv::Mat Streamer::getBGRFrame() {
 	cv::Mat frame;
@@ -286,9 +297,9 @@ void Streamer::setLowExposure(bool value) {
 		lowExposure = value;
 		if (lowExposure) {
 			// probably could be lower, but it's probably sufficent
-			visionCamera.setExposureVals(false, 50);
+			visionCamera.setExposure(50);
 		}
-		else visionCamera.setExposureVals(true, 50);
+		else visionCamera.setAutoExposure();
 	}
 }
 
@@ -306,10 +317,7 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 
 		// Draw an overlay on the frame before handing it off to gStreamer
 		cv::Mat drawnOn = visionCamera.getMat().clone();
-		for (auto i = drawTargets.begin(); i < drawTargets.end(); ++i) {
-			drawVisionPoints(i->drawPoints, drawnOn);
-		}
-	
+		annotateFrame(drawnOn);
 		videoWriter.writeFrame(drawnOn);
 
 		//std::cout << "drawing and writing took: " << std::chrono::duration_cast<std::chrono::milliseconds>
