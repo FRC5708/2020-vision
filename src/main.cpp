@@ -227,7 +227,7 @@ namespace vision5708Main {
 	}
 	int main(int argc, char** argv) {
 		// Enable or disable verbose output
-		verboseMode = true;
+		verboseMode = false;
 		
 		if (argc >= 3) {
 			readCalibParams(argv[1]);

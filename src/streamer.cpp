@@ -57,8 +57,8 @@ void Streamer::handleCrash(pid_t pid) {
 
 void addSrc(std::stringstream& cmd, const string file, int width, int height) {
 	cmd << " v4l2src device=" << file << 
-	" video/x-raw-yuv, width=" << width << ",height=" << height
-	 << ",framerate=30/1 ! videoscale ! videoconvert "; // might need queue at the end
+	" ! video/x-raw,width=" << width << ",height=" << height
+	 << ",framerate=30/1 ! videoconvert ! alpha alpha=1.0 "; // might need queue at the end
 }
 
 void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string port, vector<string> files) {
@@ -96,25 +96,25 @@ void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string p
 		return;
 	}
 
-	command << " ! queue ! " << codec << " target-bitrate=" << bitrate <<
+	command << "! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
 	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
 	<< ",framerate=30/1,profile=high ! rtph264pay ! gdppay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
 
 	if (files.size() == 2) {
 		addSrc(command, files[1], width, height);
-		command << " ! videobox left=-" << width << " ! mix ";
+		command << " ! videobox left=-" << width << " ! mix. ";
 	}
 	else if (files.size() == 3 || files.size() == 4) {
 		addSrc(command, files[1], width, height);
-		command << " ! videobox left=-" << width << " bottom=-" << height << " ! mix ";
+		command << " ! videobox left=-" << width << " bottom=-" << height << " ! mix. ";
 		
 		addSrc(command, files[2], width, height);
-		command << " ! videobox right=-" << width << " top=-" << height << " ! mix ";
+		command << " ! videobox right=-" << width << " top=-" << height << " ! mix. ";
 
 		if (files.size() == 4) {
 			addSrc(command, files[2], width, height);
-			command << " ! videobox left=-" << width << " top=-" << height << " ! mix ";
+			command << " ! videobox left=-" << width << " top=-" << height << " ! mix. ";
 		}
 	}
 
@@ -136,9 +136,13 @@ vector<string> getVideoDeviceWithString(string cmp) {
 	
 	while (fgets(output, sizeof(output), videos) != NULL) {
 		// videoX
-		if (strlen(output) >= 6) devnames.push_back(output);
-		// remove newlines
-		devnames.back().erase(std::remove(devnames.back().begin(), devnames.back().end(), '\n'), devnames.back().end());
+		if (strlen(output) >= 6) {
+			devnames.push_back(output);
+			// remove newlines
+			devnames.back().erase(std::remove(devnames.back().begin(), devnames.back().end(), '\n'), devnames.back().end());
+			// BECAUSE THERE'S TWO VIDEO DEVICES PER CAMERA???
+			break;
+		}
 	}
 	
 	pclose(videos);
@@ -154,7 +158,7 @@ vector<string> getVideoDeviceWithString(string cmp) {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"920", "C525"
+	"920", "C525", "C615"
 };
 
 void Streamer::start() {
