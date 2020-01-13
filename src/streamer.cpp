@@ -84,11 +84,11 @@ void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string p
 	else if (files.size() == 2) {
 		outputWidth = width*2; outputHeight = height;
 
-		command << " ! videobox right=-" << width << " ! videomixer name=mix ";
+		command << " ! videobox border-alpha=0 right=-" << width << " ! videomixer name=mix ";
 	}
 	else if (files.size() == 3 || files.size() == 4) {
 		outputWidth = width*2; outputHeight = height*2;
-		command << " ! videobox right=-" << width << " bottom=-" << height
+		command << " ! videobox border-alpha=0 right=-" << width << " bottom=-" << height
 		 << " ! videomixer name=mix ";
 	}
 	else {
@@ -103,18 +103,18 @@ void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string p
 
 	if (files.size() == 2) {
 		addSrc(command, files[1], width, height);
-		command << " ! videobox left=-" << width << " ! mix. ";
+		command << " ! videobox border-alpha=0 left=-" << width << " ! mix. ";
 	}
 	else if (files.size() == 3 || files.size() == 4) {
 		addSrc(command, files[1], width, height);
-		command << " ! videobox left=-" << width << " bottom=-" << height << " ! mix. ";
+		command << " ! videobox border-alpha=0 left=-" << width << " bottom=-" << height << " ! mix. ";
 		
 		addSrc(command, files[2], width, height);
-		command << " ! videobox right=-" << width << " top=-" << height << " ! mix. ";
+		command << " ! videobox border-alpha=0 right=-" << width << " top=-" << height << " ! mix. ";
 
 		if (files.size() == 4) {
 			addSrc(command, files[2], width, height);
-			command << " ! videobox left=-" << width << " top=-" << height << " ! mix. ";
+			command << " ! videobox border-alpha=0 left=-" << width << " top=-" << height << " ! mix. ";
 		}
 	}
 
@@ -322,6 +322,10 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 		// Draw an overlay on the frame before handing it off to gStreamer
 		cv::Mat drawnOn = visionCamera.getMat().clone();
 		annotateFrame(drawnOn);
+
+		
+
+
 		videoWriter.writeFrame(drawnOn);
 
 		//std::cout << "drawing and writing took: " << std::chrono::duration_cast<std::chrono::milliseconds>
