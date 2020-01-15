@@ -129,6 +129,7 @@ void VideoReader::resetTimeout(){
         if((timeout_clock.now()-last_update) > ioctl_timeout){
             ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest); // Reset the pipeline
             ioctl(camfd, VIDIOC_STREAMON, &bufrequest);
+            resetFlag=true
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); //Don't waste CPU cycles
     }
@@ -143,8 +144,9 @@ void VideoReader::grabFrame(bool firstTime) {
     // The buffer's waiting in the outgoing queue.
     int ret = ioctl(camfd, VIDIOC_DQBUF, &bufferinfo);
     if(ret < 0){
-       if(ret == EAGAIN){
-            perror("VIDIOC_DQBUF -- EAGAIN") //Ioctl timed out.
+       if(resetFlag){
+            perror("Connection was reset"); //Ioctl timed out.
+            std::cout << "Reset Time: " << std::chrono::system_clock::now() << std::endl;
             return; //We're already borked; abort this cycle.
        }
        else{ 

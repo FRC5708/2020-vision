@@ -21,6 +21,7 @@ class VideoReader {
 	void setExposureVals(bool isAuto, int exposure);
 	void resetTimeout();
 	auto ioctl_timeout = std::chrono::milliseconds(200) // 200 milliseconds @ 24 fpms > 4 frames.
+	bool resetFlag=false;
 
 public:
 	// size of the video
