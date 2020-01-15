@@ -147,6 +147,7 @@ void VideoReader::grabFrame(bool firstTime) {
        if(resetFlag){
             perror("Connection was reset"); //Ioctl timed out.
             std::cout << "Reset Time: " << std::chrono::system_clock::now() << std::endl;
+            resetFlag=false; //Reset the flag.
             return; //We're already borked; abort this cycle.
        }
        else{ 
