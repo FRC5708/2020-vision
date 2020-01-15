@@ -55,6 +55,10 @@ void VideoReader::openReader(int width, int height, const char* file) {
     bufrequest.memory = V4L2_MEMORY_MMAP;
     bufrequest.count = 4;
 
+    timeout_clock=std::chrono::steady_clock();
+    last_update = timeout_clock.now();
+    std::thread threadObj(resetTimeout); //Start monitoring thread.
+
     if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
         perror("VIDIOC_REQBUFS");
         exit(1);
@@ -117,9 +121,6 @@ void VideoReader::openReader(int width, int height, const char* file) {
         }
     }
     grabFrame(true);
-    timeout_clock=std::chrono::steady_clock();
-    last_update = timeout_clock.now();
-    std::thread threadObj(resetTimeout); //Start monitoring thread.
 }
 
 void VideoReader::resetTimeout(){
@@ -162,6 +163,7 @@ void VideoReader::grabFrame(bool firstTime) {
         perror("VIDIOC_QBUF");
         exit(1);
     }
+    last_update = timeout_clock.now(); //We succesfully grabbed a frame. Reset the timeout.
 }
 cv::Mat VideoReader::getMat() {
     return cv::Mat(height, width, CV_8UC2, currentBuffer);

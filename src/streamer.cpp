@@ -203,6 +203,7 @@ void Streamer::start() {
 	cameraReaders = vector<VideoReader>(cameraDevs.size());
 	for (int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders[i].openReader(width, height, cameraDevs[i].c_str());
+		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
 
 	visionCamera = &cameraReaders[0];
