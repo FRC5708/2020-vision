@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <thread> // I hate everything.
 
 /*
 Magic and jankyness lies here. This class communicates to the cameras and to gStreamer with the Video4Linux API.
@@ -16,14 +17,13 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
  haven't tested (especially non-usb cameras) might not work.
 */
 
-
 void VideoReader::openReader(int width, int height, const char* file) {
     this->width = width; this->height = height;
 
     // http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
     // https://jayrambhia.com/blog/capture-v4l2
 
-    camfd = open(file, O_NONBLOCK | O_RDWR);
+    camfd = open(file, O_RDWR);
     if (camfd == -1) {
         perror("open");
         exit(1);
@@ -51,7 +51,6 @@ void VideoReader::openReader(int width, int height, const char* file) {
         exit(1);
     }
 
-    struct v4l2_requestbuffers bufrequest;
     bufrequest.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     bufrequest.memory = V4L2_MEMORY_MMAP;
     bufrequest.count = 4;
@@ -89,36 +88,50 @@ void VideoReader::openReader(int width, int height, const char* file) {
         memset(buffers[i], 0, bufferinfo.length);
     }
 
-		// get framerate
-		struct v4l2_frmivalenum frameinterval;
-		frameinterval.index = 0;
-		frameinterval.width = width;
-		frameinterval.height = height;
-		frameinterval.pixel_format = V4L2_PIX_FMT_YUYV;
-		ioctl(camfd, VIDIOC_ENUM_FRAMEINTERVALS, &frameinterval);
-		std::cout << "frame interval: " << frameinterval.discrete.numerator
-		 << "/" << frameinterval.discrete.denominator << std::endl;
+    // get framerate
+    struct v4l2_frmivalenum frameinterval;
+    frameinterval.index = 0;
+    frameinterval.width = width;
+    frameinterval.height = height;
+    frameinterval.pixel_format = V4L2_PIX_FMT_YUYV;
+    ioctl(camfd, VIDIOC_ENUM_FRAMEINTERVALS, &frameinterval);
+    std::cout << "frame interval: " << frameinterval.discrete.numerator
+        << "/" << frameinterval.discrete.denominator << std::endl;
 
-		// Activate streaming
-		int type = bufferinfo.type;
-		if(ioctl(camfd, VIDIOC_STREAMON, &type) < 0){
-			perror("VIDIOC_STREAMON");
-			exit(1);
-		}
+    // Activate streaming
+    int type = bufferinfo.type;
+    if(ioctl(camfd, VIDIOC_STREAMON, &type) < 0){
+        perror("VIDIOC_STREAMON");
+        exit(1);
+    }
 
-		for (unsigned int i = 0; i < bufrequest.count; ++i) {
-			memset(&bufferinfo, 0, sizeof(bufferinfo));
-			bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-			bufferinfo.memory = V4L2_MEMORY_MMAP;
-			bufferinfo.index = i;
+    for (unsigned int i = 0; i < bufrequest.count; ++i) {
+        memset(&bufferinfo, 0, sizeof(bufferinfo));
+        bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        bufferinfo.memory = V4L2_MEMORY_MMAP;
+        bufferinfo.index = i;
 
-			if(ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
-				perror("VIDIOC_QBUF");
-				exit(1);
-			}
-		}
-		grabFrame(true);
-	}
+        if(ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
+            perror("VIDIOC_QBUF");
+            exit(1);
+        }
+    }
+    grabFrame(true);
+    timeout_clock=std::chrono::steady_clock();
+    last_update = timeout_clock.now();
+    std::thread threadObj(resetTimeout); //Start monitoring thread.
+}
+
+void VideoReader::resetTimeout(){
+    //Seperate thread that resets the camera buffers if it hangs.
+    while(1){
+        if((timeout_clock.now()-last_update) > ioctl_timeout){
+            ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest); // Reset the pipeline
+            ioctl(camfd, VIDIOC_STREAMON, &bufrequest);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10)); //Don't waste CPU cycles
+    }
+}
 
 void VideoReader::grabFrame(bool firstTime) {
     //cv::Mat otherBuffer;
@@ -225,7 +238,7 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 
 // https://gist.github.com/thearchitect/96ab846a2dae98329d1617e538fbca3c
 void VideoWriter::openWriter(int width, int height, const char* file) {		
-    v4l2lo = open(file, O_WRONLY | O_NONBLOCK);
+    v4l2lo = open(file, O_WRONLY);
     if(v4l2lo < 0) {
         std::cout << "Error opening v4l2l device: " << strerror(errno);
         exit(-2);

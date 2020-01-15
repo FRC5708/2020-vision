@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <chrono>
 
 #include <opencv2/core.hpp>
 #include <linux/videodev2.h>
@@ -13,8 +14,13 @@ class VideoReader {
 	void* currentBuffer;
 	std::vector<void*> buffers;
 	struct v4l2_buffer bufferinfo;
+	std::chrono::time_point last_update;
+	std::chrono::steady_clock timeout_clock; 
+	struct v4l2_requestbuffers bufrequest; //Stuff needs this.
 
 	void setExposureVals(bool isAuto, int exposure);
+	void resetTimeout();
+	auto ioctl_timeout = std::chrono::milliseconds(200) // 200 milliseconds @ 24 fpms > 4 frames.
 
 public:
 	// size of the video
