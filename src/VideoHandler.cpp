@@ -225,7 +225,7 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 
 // https://gist.github.com/thearchitect/96ab846a2dae98329d1617e538fbca3c
 void VideoWriter::openWriter(int width, int height, const char* file) {		
-    v4l2lo = open(file, O_WRONLY);
+    v4l2lo = open(file, O_WRONLY | O_NONBLOCK);
     if(v4l2lo < 0) {
         std::cout << "Error opening v4l2l device: " << strerror(errno);
         exit(-2);
