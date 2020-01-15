@@ -127,9 +127,9 @@ void VideoReader::resetTimeout(){
     //Seperate thread that resets the camera buffers if it hangs.
     while(1){
         if((timeout_clock.now()-last_update) > ioctl_timeout){
+            resetFlag=true 
             ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest); // Reset the pipeline
             ioctl(camfd, VIDIOC_STREAMON, &bufrequest);
-            resetFlag=true
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); //Don't waste CPU cycles
     }
