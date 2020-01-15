@@ -23,7 +23,7 @@ void VideoReader::openReader(int width, int height, const char* file) {
     // http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
     // https://jayrambhia.com/blog/capture-v4l2
 
-    camfd = open(file, O_NONBLOCK);
+    camfd = open(file, O_NONBLOCK | O_RDWR);
     if (camfd == -1) {
         perror("open");
         exit(1);
@@ -129,7 +129,10 @@ void VideoReader::grabFrame(bool firstTime) {
     // The buffer's waiting in the outgoing queue.
     int ret = ioctl(camfd, VIDIOC_DQBUF, &bufferinfo);
     if(ret < 0){
-       if(ret == EAGAIN) perror("VIDIOC_DQBUF -- EAGAIN") //Ioctl timed out.
+       if(ret == EAGAIN){
+            perror("VIDIOC_DQBUF -- EAGAIN") //Ioctl timed out.
+            return; //We're already borked; abort this cycle.
+       }
        else{ 
             perror("VIDIOC_DQBUF"); //Some other horrifying error.
             exit(1);
