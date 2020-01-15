@@ -127,9 +127,11 @@ void VideoReader::resetTimeout(){
     //Seperate thread that resets the camera buffers if it hangs.
     while(1){
         if((timeout_clock.now()-last_update) > ioctl_timeout){
-            resetFlag=true 
+            resetFlag=true;
             ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest); // Reset the pipeline
             ioctl(camfd, VIDIOC_STREAMON, &bufrequest);
+            resetFlag=false;
+
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); //Don't waste CPU cycles
     }
@@ -142,21 +144,21 @@ void VideoReader::grabFrame(bool firstTime) {
     bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     bufferinfo.memory = V4L2_MEMORY_MMAP;
     // The buffer's waiting in the outgoing queue.
+    if(resetFlag) return; //We're still resetting. 
     int ret = ioctl(camfd, VIDIOC_DQBUF, &bufferinfo);
     if(ret < 0){
-       if(resetFlag){
+        if(resetFlag){
             perror("Connection was reset"); //Ioctl timed out.
             std::cout << "Reset Time: " << std::chrono::system_clock::now() << std::endl;
-            resetFlag=false; //Reset the flag.
             return; //We're already borked; abort this cycle.
-       }
-       else{ 
+        }
+        else{ 
             perror("VIDIOC_DQBUF"); //Some other horrifying error.
             exit(1);
-       }
-  }
+        }
+    }
+        
 
-    
     currentBuffer = buffers[bufferinfo.index];
     //std::cout << "buffer index: " << bufferinfo.index << " addr: " << currentBuffer << std::endl;
     assert((signed) bufferinfo.length == width*height*2);
