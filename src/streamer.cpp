@@ -58,10 +58,10 @@ void Streamer::handleCrash(pid_t pid) {
 void addSrc(std::stringstream& cmd, const string file, int width, int height) {
 	cmd << " v4l2src device=" << file << 
 	" ! video/x-raw,width=" << width << ",height=" << height
-	 << ",framerate=30/1 ! videoconvert ! alpha alpha=1.0 "; // might need queue at the end
+	 << ",framerate=30/1 ! videoconvert "; // might need queue at the end
 }
 
-void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string port, vector<string> files) {
+void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, vector<string> files) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
 	assert(files.size() > 0);
 
@@ -74,9 +74,11 @@ void Streamer::launchGStreamer(const char* recieveAddress, int bitrate, string p
 	command << gstreamCommand;
 	addSrc(command, files[0], width, height);
 
-	int outputWidth, outputHeight;
+	//int outputWidth, outputHeight;
 
 	// https://www.technomancy.org/gstreamer/playing-two-videos-side-by-side/
+
+	int outputWidth, outputHeight;
 
 	if (files.size() == 1) {
 		outputWidth = width; outputHeight = height;
@@ -198,8 +200,22 @@ void Streamer::start() {
 		this->width = 640; this->height = 360;
 	}
 
-	visionCamera.openReader(width, height, cameraDevs[0].c_str());
-	videoWriter.openWriter(width, height, loopbackDev.c_str());
+	cameraReaders = vector<VideoReader>(cameraDevs.size());
+	for (int i = 0; i < cameraDevs.size(); ++i) {
+		cameraReaders[i].openReader(width, height, cameraDevs[i].c_str());
+	}
+
+	visionCamera = &cameraReaders[0];
+
+	if (cameraDevs.size() > 1) outputWidth = width*2;
+	else outputWidth = width;
+	if (cameraDevs.size() <= 2) outputHeight = height;
+	else outputHeight = height*2;
+
+	correctedWidth = ceil(outputWidth/16.0)*16;
+	correctedHeight = ceil(outputHeight/16.0)*16;
+
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	// Start the thread that listens for the signal from the driver station
 	std::thread([this]() {
@@ -273,9 +289,9 @@ void Streamer::start() {
 			getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
     		0,0,NI_NUMERICHOST);
 
-			vector<string> outputVideoDevs = cameraDevs;
-			outputVideoDevs[0] = loopbackDev;
-			launchGStreamer(strAddr, atoi(bitrate), "5809", outputVideoDevs);
+			//vector<string> outputVideoDevs = cameraDevs;
+			//outputVideoDevs[0] = loopbackDev;
+			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", {loopbackDev});
 
 			// It was planned to draw an overlay over the video feed in the driver station.
 			// This sends the overlay data.
@@ -292,7 +308,7 @@ void Streamer::start() {
 // get frame in the color space that the vision processing uses
 cv::Mat Streamer::getBGRFrame() {
 	cv::Mat frame;
-	cvtColor(visionCamera.getMat(), frame, cv::COLOR_YUV2BGR_YUYV);
+	cvtColor(visionCamera->getMat(), frame, cv::COLOR_YUV2BGR_YUYV);
 	return frame;
 }
 
@@ -301,9 +317,9 @@ void Streamer::setLowExposure(bool value) {
 		lowExposure = value;
 		if (lowExposure) {
 			// probably could be lower, but it's probably sufficent
-			visionCamera.setExposure(50);
+			visionCamera->setExposure(50);
 		}
-		else visionCamera.setAutoExposure();
+		else visionCamera->setAutoExposure();
 	}
 }
 
@@ -313,20 +329,33 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 	while (true) {
 
 		//auto startTime = clock.now();
-		visionCamera.grabFrame();
+		//visionCamera.grabFrame();
+
+		for (auto i = cameraReaders.begin(); i < cameraReaders.end(); ++i) {
+			i->grabFrame();
+		}
+
 		//auto writeStart = clock.now();
 		//std::cout << "grabFrame took: " << std::chrono::duration_cast<std::chrono::milliseconds>
 		//	(writeStart - startTime).count() << " ms" << endl;
-
+		cv::Mat output;
 
 		// Draw an overlay on the frame before handing it off to gStreamer
-		cv::Mat drawnOn = visionCamera.getMat().clone();
-		annotateFrame(drawnOn);
+		cv::Mat drawnOn = visionCamera->getMat().clone();
+		if (annotateFrame != nullptr) annotateFrame(drawnOn);
 
-		
+		if (cameraReaders.size() == 1) output = drawnOn;
+		else if (cameraReaders.size() >= 2) {
+			output.create(correctedHeight, correctedWidth, CV_8UC2);
 
+			drawnOn.copyTo(output.colRange(0, width).rowRange(0, height));
+			cameraReaders[1].getMat().copyTo(output.colRange(width, outputWidth).rowRange(0, height));
+		}
+		if (cameraReaders.size() == 3) {
+			cameraReaders[2].getMat().copyTo(output.colRange(0, width).rowRange(height, outputHeight));
+		}
 
-		videoWriter.writeFrame(drawnOn);
+		videoWriter.writeFrame(output);
 
 		//std::cout << "drawing and writing took: " << std::chrono::duration_cast<std::chrono::milliseconds>
 		//	(clock.now() - writeStart).count() << " ms" << endl;
