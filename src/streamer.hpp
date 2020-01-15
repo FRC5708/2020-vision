@@ -22,7 +22,7 @@ class Streamer {
 	std::vector<GstInstance> gstInstances;
 	
 	volatile bool handlingLaunchRequest = false;
-	void launchGStreamer(const char* recieveAddress, int bitrate, std::string port, std::vector<std::string> files);
+	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::vector<std::string> files);
 
 	std::vector<std::string> cameraDevs;
 
@@ -35,10 +35,12 @@ class Streamer {
 
 	VideoWriter videoWriter;
 
-	VideoReader visionCamera;
+	VideoReader* visionCamera;
+
+	std::vector<VideoReader> cameraReaders;
 
 public:
-	int width, height;
+	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
