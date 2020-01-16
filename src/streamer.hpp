@@ -35,20 +35,14 @@ class Streamer {
 
 	VideoWriter videoWriter;
 
-	VideoReader* visionCamera;
+	ThreadedVideoReader* visionCamera;
 
-	std::vector<VideoReader> cameraReaders;
+	std::vector<ThreadedVideoReader> cameraReaders;
 
-	void gotCameraFrame(int cameraId);
+	void Streamer::gotCameraFrame();
 	void pushFrame();
 
-	std::mutex cameraFlagsLock;
-
-	struct cameraFlagsT {
-		bool newFrame = false;
-		std::chrono::steady_clock::time_point lastFrameTime = std::chrono::steady_clock::now();
-	};
-	std::vector<volatile cameraFlagsT> cameraFlags;
+	std::mutex cameraFlagsLock; // required in order to read from the public flags of ThreadedVideoReader
 
 public:
 	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;

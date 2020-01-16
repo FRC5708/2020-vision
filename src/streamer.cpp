@@ -203,13 +203,11 @@ void Streamer::start() {
 		this->width = 432; this->height = 240;
 	}
 
-	vector<VideoReader> cameraReaders;
 	for (int i = 0; i < cameraDevs.size(); ++i) {
-		cameraReaders.push_back(VideoReader(width, height, cameraDevs[i].c_str()));
+		cameraReaders.push_back(ThreadedVideoReader(width, height, cameraDevs[i].c_str()));
+		cameraReaders[i].newFrameCallback = gotCameraFrame;
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
-	
-	cameraFlags.resize(cameraReaders.size());
 
 	visionCamera = &cameraReaders[0];
 
@@ -329,21 +327,18 @@ void Streamer::setLowExposure(bool value) {
 	}
 }
 
-void Streamer::gotCameraFrame(int cameraId) {
+void Streamer::gotCameraFrame() {
 	auto time = std::chrono::steady_clock().now();
 
-	cameraFlagsLock.lock();
-	cameraFlags[cameraId].newFrame = true;
-	cameraFlags[cameraId].lastFrameTime = time;
-	
+	cameraFlagsLock.lock();	
 
 	bool everythingRecieved = true;
-	for (auto& i : cameraFlags) {
-		// if no new frame but not dead
-		if (!i.newFrame && time - i.lastFrameTime < std::chrono::milliseconds(45)) everythingRecieved = false;
+	for (auto& i : cameraReaders) {
+		// if no new frame but camera is not dead
+		if (!i.hasNewFrame && time - i.last_update < std::chrono::milliseconds(45)) everythingRecieved = false;
 	}
 	if (everythingRecieved) {
-		for (auto& i : cameraFlags) i.newFrame = false;
+		for (auto& i : cameraReaders) i.hasNewFrame = false;
 
 		cameraFlagsLock.unlock();
 
@@ -376,16 +371,6 @@ void Streamer::pushFrame() {
 }
 
 void Streamer::run() {
-	for (int i = 1; i < cameraReaders.size(); ++i) {
-		std::thread([this, i]() {
-			while (true) {
-				cameraReaders[i].grabFrame();
-				gotCameraFrame(i);
-			}
-		}).detach();
-	}
-	while (true) {
-		cameraReaders[0].grabFrame();
-		gotCameraFrame(0);
-	}
+	// defunct; doesn't do anything anymore
+	while (true) sleep(INT_MAX);
 }

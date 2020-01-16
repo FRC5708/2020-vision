@@ -2,34 +2,35 @@
 
 #include <vector>
 #include <chrono>
+#include <mutex>
 
 #include <opencv2/core.hpp>
 #include <linux/videodev2.h>
 
 // Some helper classes to interface with the Video4Linux (V4L2) API
 
+
+
 // Reads video from a camera
 class VideoReader {
+
+protected:
 	int camfd;
 	void* currentBuffer;
 	std::vector<void*> buffers;
-	struct v4l2_buffer bufferinfo;
-	std::chrono::time_point last_update;
-	std::chrono::steady_clock timeout_clock; 
+	struct v4l2_buffer bufferinfo; 
 	struct v4l2_requestbuffers bufrequest; //Stuff needs this.
 
+	void startStreaming();
 	void setExposureVals(bool isAuto, int exposure);
-	void resetTimeout();
-	auto ioctl_timeout = std::chrono::milliseconds(200) // 200 milliseconds @ 24 fpms > 4 frames.
-	bool resetFlag=false;
-	std::thread resetTimeoutThread; //Keep ahold of the thread handle
 
 public:
 	// size of the video
 	int width, height;
+	std::string deviceFile;
 
 	VideoReader(int width, int height, const char* file);
-	~VideoReader();
+	virtual ~VideoReader();
 
 	// Get the most-recently-grabbed frame in an opencv Mat.
 	// The data is not copied.
@@ -46,6 +47,28 @@ public:
 
 
 };
+
+class ThreadedVideoReader : public VideoReader {
+public:
+	ThreadedVideoReader(int width, int height, const char* file);
+	void grabFrame(bool firstTime = false) override;
+	
+	std::chrono::steady_clock::time_point last_update;
+	volatile bool hasNewFrame = false;
+
+	std::function<void(void)> newFrameCallback;
+
+private:
+	std::chrono::steady_clock timeout_clock;
+
+	void resetTimeout();
+	void mainLoop();
+	// Only reset the camera if it's been dead for over a second.
+	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(1000); 
+	std::mutex resetLock;
+	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handle
+};
+
 
 // Writes video to a v4l2-loopback device
 class VideoWriter {
