@@ -277,8 +277,7 @@ namespace vision5708Main {
 		std::thread visThread(&VisionThread);
 		std::thread controlSockThread(&ControlSocket);
 
-		// never returns
-		streamer.run([]() {
+		streamer.frameNotifier = []() {
 			
 			// This lambda is called every frame.
 			// It wakes up the vision processing thread if it is waiting on a new frame.
@@ -291,7 +290,9 @@ namespace vision5708Main {
 				waitMutex.unlock();
 				condition.notify_one();
 			}
-		});
+		};
+		// never returns
+		streamer.run();
 
 		return 0;
 	}

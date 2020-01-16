@@ -39,6 +39,17 @@ class Streamer {
 
 	std::vector<VideoReader> cameraReaders;
 
+	void gotCameraFrame(int cameraId);
+	void pushFrame();
+
+	std::mutex cameraFlagsLock;
+
+	struct cameraFlagsT {
+		bool newFrame = false;
+		std::chrono::steady_clock::time_point lastFrameTime = std::chrono::steady_clock::now();
+	};
+	std::vector<volatile cameraFlagsT> cameraFlags;
+
 public:
 	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;
 
@@ -54,9 +65,10 @@ public:
 	// Gets a video frame which is converted to the blue-green-red format usually used by opencv
 	cv::Mat getBGRFrame();
 
-	// Runs the thread that grabs and forwards frames from the vision camera
 	// frameNotifier is called every frame
-	void run(std::function<void(void)> frameNotifier); 
+	std::function<void(void)> frameNotifier;
+	// Runs the thread that grabs and forwards frames from the vision camera
+	void run(); 
 
 	bool lowExposure = false;
 	void setLowExposure(bool value);

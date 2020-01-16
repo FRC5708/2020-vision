@@ -196,8 +196,11 @@ void Streamer::start() {
 	if (cameraDevs.size() == 1) {
 		this->width = 800; this->height = 448;
 	}
-	else {
+	else if (cameraDevs.size() == 2) {
 		this->width = 640; this->height = 360;
+	}
+	else {
+		this->width = 432; this->height = 240;
 	}
 
 	vector<VideoReader> cameraReaders;
@@ -205,6 +208,8 @@ void Streamer::start() {
 		cameraReaders.push_back(VideoReader(width, height, cameraDevs[i].c_str()));
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
+	
+	cameraFlags.resize(cameraReaders.size());
 
 	visionCamera = &cameraReaders[0];
 
@@ -324,22 +329,31 @@ void Streamer::setLowExposure(bool value) {
 	}
 }
 
-void Streamer::run(std::function<void(void)> frameNotifier) {
+void Streamer::gotCameraFrame(int cameraId) {
+	auto time = std::chrono::steady_clock().now();
+
+	cameraFlagsLock.lock();
+	cameraFlags[cameraId].newFrame = true;
+	cameraFlags[cameraId].lastFrameTime = time;
 	
-	//std::chrono::steady_clock clock;
-	while (true) {
 
-		//auto startTime = clock.now();
-		//visionCamera.grabFrame();
+	bool everythingRecieved = true;
+	for (auto& i : cameraFlags) {
+		// if no new frame but not dead
+		if (!i.newFrame && time - i.lastFrameTime < std::chrono::milliseconds(45)) everythingRecieved = false;
+	}
+	if (everythingRecieved) {
+		for (auto& i : cameraFlags) i.newFrame = false;
 
-		for (auto i = cameraReaders.begin(); i < cameraReaders.end(); ++i) {
-			i->grabFrame();
-		}
+		cameraFlagsLock.unlock();
 
-		//auto writeStart = clock.now();
-		//std::cout << "grabFrame took: " << std::chrono::duration_cast<std::chrono::milliseconds>
-		//	(writeStart - startTime).count() << " ms" << endl;
-		cv::Mat output;
+		pushFrame();
+	}
+	else cameraFlagsLock.unlock();
+}
+
+void Streamer::pushFrame() {
+	cv::Mat output;
 
 		// Draw an overlay on the frame before handing it off to gStreamer
 		cv::Mat drawnOn = visionCamera->getMat().clone();
@@ -358,10 +372,20 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 
 		videoWriter.writeFrame(output);
 
-		//std::cout << "drawing and writing took: " << std::chrono::duration_cast<std::chrono::milliseconds>
-		//	(clock.now() - writeStart).count() << " ms" << endl;
-
 		frameNotifier();
+}
+
+void Streamer::run() {
+	for (int i = 1; i < cameraReaders.size(); ++i) {
+		std::thread([this, i]() {
+			while (true) {
+				cameraReaders[i].grabFrame();
+				gotCameraFrame(i);
+			}
+		}).detach();
 	}
-	
+	while (true) {
+		cameraReaders[0].grabFrame();
+		gotCameraFrame(0);
+	}
 }
