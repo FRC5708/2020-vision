@@ -22,12 +22,14 @@ class VideoReader {
 	void resetTimeout();
 	auto ioctl_timeout = std::chrono::milliseconds(200) // 200 milliseconds @ 24 fpms > 4 frames.
 	bool resetFlag=false;
+	std::thread resetTimeoutThread; //Keep ahold of the thread handle
 
 public:
 	// size of the video
 	int width, height;
 
-	void openReader(int width, int height, const char* file);
+	VideoReader(int width, int height, const char* file);
+	~VideoReader();
 
 	// Get the most-recently-grabbed frame in an opencv Mat.
 	// The data is not copied.

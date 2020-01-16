@@ -17,7 +17,7 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
  haven't tested (especially non-usb cameras) might not work.
 */
 
-void VideoReader::openReader(int width, int height, const char* file) {
+VideoReader::VideoReader(int width, int height, const char* file) {
     this->width = width; this->height = height;
 
     // http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
@@ -57,7 +57,7 @@ void VideoReader::openReader(int width, int height, const char* file) {
 
     timeout_clock=std::chrono::steady_clock();
     last_update = timeout_clock.now();
-    std::thread threadObj(resetTimeout); //Start monitoring thread.
+    resetTimeoutThread = threadObj(resetTimeout); //Start monitoring thread.
 
     if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
         perror("VIDIOC_REQBUFS");
@@ -121,6 +121,13 @@ void VideoReader::openReader(int width, int height, const char* file) {
         }
     }
     grabFrame(true);
+}
+VideoReader::~VideoReader(){
+    //Destructor
+    resetTimeoutThread.~thread(); //Destroy the thread.
+    int type = bufferinfo.type;
+    ioctl(camfd, VIDIOC_STREAMOFF, &type); //Send the off ioctl.
+    close(camfd); //Close the camera fd.
 }
 
 void VideoReader::resetTimeout(){
