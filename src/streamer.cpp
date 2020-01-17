@@ -371,7 +371,7 @@ void Streamer::pushFrame(int i) {
 			perror("More than three camera output is unsupported at this time.");
 			return;
 	}
-	if(checkFramebufferReadiness())){
+	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);
 		for(int i=0;i<cameraDevs.size();i++){
 			readyState[i]=false;
