@@ -52,7 +52,7 @@ class ThreadedVideoReader : public VideoReader {
 public:
 	ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback);
 	void grabFrame(bool firstTime = false) override;
-	
+	std::function<void(void)> newFrameCallback; //Frick  me and my badness.
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
 
