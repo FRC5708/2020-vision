@@ -54,6 +54,9 @@ void Streamer::handleCrash(pid_t pid) {
 		}
 	}
 }
+Streamer::Streamer(std::function<void(void)> callback){
+	frameNotifier=callback;
+}
 
 void addSrc(std::stringstream& cmd, const string file, int width, int height) {
 	cmd << " v4l2src device=" << file << 

@@ -45,6 +45,7 @@ class Streamer {
 	std::mutex cameraFlagsLock; // required in order to read from the public flags of ThreadedVideoReader
 
 public:
+	Streamer(std::function<void(void)>);
 	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
@@ -60,7 +61,7 @@ public:
 	cv::Mat getBGRFrame();
 
 	// frameNotifier is called every frame
-	std::function<void(void)> frameNotifier;
+	std::function<void(void)> frameNotifier; //FrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
 	// Runs the thread that grabs and forwards frames from the vision camera
 	void run(); 
 
