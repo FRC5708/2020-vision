@@ -231,7 +231,6 @@ void ThreadedVideoReader::grabFrame(bool firstTime) {
 	resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
 	VideoReader::grabFrame();
 	last_update = timeout_clock.now(); //We succesfully grabbed a frame. Reset the timeout.
-	hasNewFrame = true;
 }
 ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file)
 : VideoReader(width, height, file) {
@@ -261,7 +260,7 @@ void ThreadedVideoReader::resetTimeout(){
 void ThreadedVideoReader::mainLoop() {
 	while (true) {
 		grabFrame();
-		if (newFrameCallback != nullptr) newFrameCallback();
+		newFrameCallback();
 	}
 }
 
