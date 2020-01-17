@@ -350,20 +350,22 @@ void Streamer::pushFrame(int i) {
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/
+	//TODO: potential video tearing if the ThreadedVideoReader writes to the buffer at the same time getMat is called.
 	frameLock.lock(); //We don't want this happening concurrently.
 	readyState[i]=true;
+	cv::Mat drawnOn;
 	switch(i){
 		case 0: //Vision camera
-			cv::Mat drawnOn = visionCamera->getMat().clone(); // Draw an overlay on the frame before handing it off to gStreamer
+			drawnOn = visionCamera->getMat().clone(); // Draw an overlay on the frame before handing it off to gStreamer
 			if (annotateFrame != nullptr) annotateFrame(drawnOn);
 			drawnOn.copyTo(frameBuffer.colRange(0, width).rowRange(0, height));
 			visionFrameNotifier(); //New vision frame
 			break;
 		case 1: //Second camera
-			cameraReaders[1].getMat().copyTo(output.colRange(width, outputWidth).rowRange(0, height));
+			cameraReaders[1].getMat().copyTo(frameBuffer.colRange(width, outputWidth).rowRange(0, height));
 			break;
 		case 2: //Third camera
-			cameraReaders[2].getMat().copyTo(output.colRange(0, width).rowRange(height, outputHeight));
+			cameraReaders[2].getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, outputHeight));
 			break;
 		default:
 			perror("More than three camera output is unsupported at this time.");
@@ -371,6 +373,9 @@ void Streamer::pushFrame(int i) {
 	}
 	if(checkFramebufferReadiness())){
 		videoWriter.writeFrame(frameBuffer);
+		for(int i=0;i<cameraDevs.size();i++){
+			readyState[i]=false;
+		}
 	}
 	frameLock.unlock();
 }
