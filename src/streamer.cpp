@@ -55,7 +55,7 @@ void Streamer::handleCrash(pid_t pid) {
 	}
 }
 Streamer::Streamer(std::function<void(void)> callback){
-	frameNotifier=callback;
+	visionFrameNotifier=callback;
 }
 
 void addSrc(std::stringstream& cmd, const string file, int width, int height) {
@@ -208,7 +208,8 @@ void Streamer::start() {
 
 	for (int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(ThreadedVideoReader(width, height, cameraDevs[i].c_str()));
-		cameraReaders[i].newFrameCallback = gotCameraFrame;
+		cameraReaders[i].newFrameCallback = std::bind(pushFrame,i); //Bind callback to relevant id.
+		writeLocks.push_back(std::mutex());
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
 
@@ -221,6 +222,7 @@ void Streamer::start() {
 
 	correctedWidth = ceil(outputWidth/16.0)*16;
 	correctedHeight = ceil(outputHeight/16.0)*16;
+	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2); //Framebuffer matrix
 
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
@@ -330,47 +332,53 @@ void Streamer::setLowExposure(bool value) {
 	}
 }
 
-void Streamer::gotCameraFrame() {
+void Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
-
-	cameraFlagsLock.lock();	
-
-	bool everythingRecieved = true;
-	for (auto& i : cameraReaders) {
-		// if no new frame but camera is not dead
-		if (!i.hasNewFrame && time - i.last_update < std::chrono::milliseconds(45)) everythingRecieved = false;
+	for(auto& camera : cameraReaders){
+		if(!camera.hasNewFrame && time - camera.last_update < std::chrono::milliseconds(30)) return; //We're not ready, yet.
 	}
-	if (everythingRecieved) {
-		for (auto& i : cameraReaders) i.hasNewFrame = false;
-
-		cameraFlagsLock.unlock();
-
-		pushFrame();
+	//We're ready. Lock the thread to avoid concurrency issues.
+	if(!frameLock.try_lock()){
+		return; //Another thread is already doing this.
 	}
-	else cameraFlagsLock.unlock();
+	for(auto& writeLock : writeLocks){
+		writeLock.lock(); //Wait for all frames to be pushed, if currently in process.
+	}
+	videoWriter.writeFrame(frameBuffer); //We're good. Write the frame.
+	for(auto& i : cameraReaders){
+		i.hasNewFrame = false;
+	}
+	for(auto& writeLock : writeLocks){
+		writeLock.unlock();
+	}
+	frameLock.unlock(); //We're done.
 }
+void Streamer::pushFrame(int i) {
+	/* Updates framebuffer section for camera $i
+	** We do not care if multiple camera threads call this simultaenously.
+	** (In fact, that's a good thing.)
+	*/
+	writeLocks[i].lock();
+	cv::Mat drawnOn = visionCamera->getMat().clone(); // Draw an overlay on the frame before handing it off to gStreamer
+	if (annotateFrame != nullptr) annotateFrame(drawnOn);
 
-void Streamer::pushFrame() {
-	cv::Mat output;
-
-		// Draw an overlay on the frame before handing it off to gStreamer
-		cv::Mat drawnOn = visionCamera->getMat().clone();
-		if (annotateFrame != nullptr) annotateFrame(drawnOn);
-
-		if (cameraReaders.size() == 1) output = drawnOn;
-		else if (cameraReaders.size() >= 2) {
-			output.create(correctedHeight, correctedWidth, CV_8UC2);
-
-			drawnOn.copyTo(output.colRange(0, width).rowRange(0, height));
+	switch(i){
+		case 0: //Vision camera
+			drawnOn.copyTo(frameBuffer.colRange(0, width).rowRange(0, height));
+			visionFrameNotifier(); //New vision frame
+			break;
+		case 1: //Second camera
 			cameraReaders[1].getMat().copyTo(output.colRange(width, outputWidth).rowRange(0, height));
-		}
-		if (cameraReaders.size() == 3) {
+			break;
+		case 2: //Third camera
 			cameraReaders[2].getMat().copyTo(output.colRange(0, width).rowRange(height, outputHeight));
-		}
-
-		videoWriter.writeFrame(output);
-
-		frameNotifier();
+			break;
+		default:
+			perror("More than three camera output is unsupported at this time.");
+			break;
+	}
+	writeLocks[i].unlock();
+	checkFramebufferReadiness();
 }
 
 void Streamer::run() {

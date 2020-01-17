@@ -39,10 +39,11 @@ class Streamer {
 
 	std::vector<ThreadedVideoReader> cameraReaders;
 
-	void Streamer::gotCameraFrame();
-	void pushFrame();
-
-	std::mutex cameraFlagsLock; // required in order to read from the public flags of ThreadedVideoReader
+	//void Streamer::gotCameraFrame();
+	void pushFrame(int i);
+	void checkFramebufferReadiness(); //Check if we are read to write the framebuffer. If so, do so.
+	std::vector<std::mutex> writeLocks;
+	std::mutex frameLock; // required in order to read from the public flags of ThreadedVideoReader
 
 public:
 	Streamer(std::function<void(void)>);
@@ -60,12 +61,13 @@ public:
 	// Gets a video frame which is converted to the blue-green-red format usually used by opencv
 	cv::Mat getBGRFrame();
 
-	// frameNotifier is called every frame
-	std::function<void(void)> frameNotifier; //FrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
+	// visionFrameNotifier is called every new frame from the vision camera
+	std::function<void(void)> visionFrameNotifier; //visionFrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
 	// Runs the thread that grabs and forwards frames from the vision camera
 	void run(); 
 
 	bool lowExposure = false;
 	void setLowExposure(bool value);
+	cv::Mat frameBuffer;
 };
 extern int clientFd; 

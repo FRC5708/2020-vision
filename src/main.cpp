@@ -41,8 +41,8 @@ auto currentFrameTime = clock.now();
 // c++ doesn't have real semaphores, so we must use the jank condition_variable to synchronize threads.
 std::mutex waitMutex; 
 std::condition_variable condition;
-void frameNotifier(); //Declared later in namespace
-Streamer streamer(frameNotifier);
+void visionFrameNotifier(); //Declared later in namespace
+Streamer streamer(visionFrameNotifier);
 
 // recieves enable/disable signals from the RIO to conserve thermal capacity
 // Also sets exposure when actively driving to target
@@ -223,9 +223,9 @@ void drawTargets(cv::Mat drawOn) {
 		drawVisionPoints(i->drawPoints, drawOn);
 	}
 }
-void frameNotifier(){
+void visionFrameNotifier(){
 		
-// This function is called every frame.
+// This function is called every new frame we get from the vision camera.
 // It wakes up the vision processing thread if it is waiting on a new frame.
 // if vision processing is disabled, it wakes up the thread only once every 2 seconds.
 
