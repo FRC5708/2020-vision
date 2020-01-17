@@ -55,8 +55,6 @@ public:
 	std::function<void(void)> newFrameCallback;
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
-    
-    
 
 private:
 	std::chrono::steady_clock timeout_clock;
