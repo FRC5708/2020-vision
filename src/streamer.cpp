@@ -228,7 +228,7 @@ void Streamer::start() {
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
 
-	
+	initialized = true;	
 
 	// Start the thread that listens for the signal from the driver station
 	std::thread([this]() {
@@ -350,8 +350,9 @@ bool Streamer::checkFramebufferReadiness(){
 	return true;
 }
 void Streamer::pushFrame(int i) {
+	//cout << "Logging: received frame from " << i << endl;
+
 	if(!initialized) return; //We're still setting up.
-	cout << "Logging: received frame from " << i << endl;
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/

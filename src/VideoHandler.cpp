@@ -63,6 +63,12 @@ VideoReader::VideoReader(int width, int height, const char* file) {
 
 	std::cout << "buffer count: " << bufrequest.count << std::endl;
 	buffers.resize(bufrequest.count);
+	
+
+
+   startStreaming(); 
+}
+void VideoReader::startStreaming() {
 	for (unsigned int i = 0; i < bufrequest.count; ++i) {
 		bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		bufferinfo.memory = V4L2_MEMORY_MMAP;
@@ -98,14 +104,10 @@ VideoReader::VideoReader(int width, int height, const char* file) {
 	std::cout << "frame interval: " << frameinterval.discrete.numerator
 		<< "/" << frameinterval.discrete.denominator << std::endl;
 
-
-   startStreaming(); 
-}
-void VideoReader::startStreaming() {
 	int type = bufferinfo.type;
 	if(ioctl(camfd, VIDIOC_STREAMON, &type) < 0){
 		perror("VIDIOC_STREAMON");
-		exit(1);
+		return;
 	}
 
 	for (unsigned int i = 0; i < bufrequest.count; ++i) {
@@ -115,8 +117,8 @@ void VideoReader::startStreaming() {
 		bufferinfo.index = i;
 
 		if(ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
+			std::cerr << "Queueing buffer " << i << ": ";
 			perror("VIDIOC_QBUF");
-			exit(1);
 		}
 	}
 	grabFrame(true);

@@ -178,8 +178,8 @@ bool readCalibParams(const char* path, bool failHard = true) {
 void changeCalibResolution(int width, int height) {
 	assert(calib::cameraMatrix.type() == CV_64F);
 	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.01) {
-		cerr << "wrong aspect ratio recieved from camera" << endl;
-		exit(1);
+		cerr << "wrong aspect ratio recieved from camera! Vision will be borked!" << endl;
+		return;
 	}
 	calib::cameraMatrix.at<double>(0, 0) *= (width / (double) calib::width);
 	calib::cameraMatrix.at<double>(0, 2) *= (width / (double) calib::width);
