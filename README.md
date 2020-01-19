@@ -27,3 +27,5 @@ The secondary camera, if it exists, is given directly to gStreamer.
 **Color spaces:** The cameras and the video encoding both operate in the YUYV (or YCbCr, there's many names for it) color space. Frames are converted to RGB for vision processing, but for performance reasons, the overlay isn't, which limits it to various shades of green and pink and gives it colorful fringes.
 
 **USB bandwidth:** The raspberry pi only has one USB controller, which means that all usb devices share a maximum of 480 mbps of bandwidth. The data is transmitted from the camera uncompressed, which eats this up quickly. Limiting the resolution to 800x448 with one camera or 640x360 each for two cameras gives a comfortable amount of headroom. 
+
+**Firmware Update:** Using this code will not work stably without VL805 firmware 0137ad or higher -- https://www.raspberrypi.org/forums/viewtopic.php?t=260879
