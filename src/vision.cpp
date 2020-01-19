@@ -451,7 +451,7 @@ ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
 
 std::vector<VisionTarget> processContours(
 	std::vector<std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
-std::vector<cv::Rect> rects;
+    std::vector<cv::Rect> rects;
 	std::vector<ContourCorners> contourCorners;
 
 	const float minRectWidth = 10; //pixels 
