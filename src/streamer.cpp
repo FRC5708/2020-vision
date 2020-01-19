@@ -200,12 +200,12 @@ void Streamer::start() {
 		this->width = 800; this->height = 448;
 	}
 	else if (cameraDevs.size() == 2) {
-		this->width = 800; this->height = 448;
-		//this->width = 640; this->height = 360;
+		//this->width = 800; this->height = 448;
+		this->width = 640; this->height = 360;
 	}
 	else {
-		this->width = 640; this->height = 360;
-		//this->width = 432; this->height = 240;
+		//this->width = 640; this->height = 360;
+		this->width = 432; this->height = 240;
 	}
 
 	if (cameraDevs.size() > 1) outputWidth = width*2;

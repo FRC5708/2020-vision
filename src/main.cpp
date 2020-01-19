@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.width, streamer.height);
 
-	std::thread visThread(&VisionThread);
+	//std::thread visThread(&VisionThread);
 	std::thread controlSockThread(&ControlSocket);
 
 	// never returns
