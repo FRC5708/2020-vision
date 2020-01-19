@@ -343,13 +343,11 @@ void Streamer::setLowExposure(bool value) {
 
 bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
+	
 	for(unsigned int i=0;i<cameraDevs.size();i++){
-		if(!readyState[i]){
-			if(time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
-				readyState[i] = true; //Cache result of timeout to avoid unnesccesary comparisons
-			}else{
-				return false; 
-			}
+		// if there is no new frame from the camera, but the camera is not dead, return false
+		if(!readyState[i] && time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
+			return false;
 		}
 	}
 	return true;
