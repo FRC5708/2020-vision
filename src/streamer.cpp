@@ -200,10 +200,12 @@ void Streamer::start() {
 		this->width = 800; this->height = 448;
 	}
 	else if (cameraDevs.size() == 2) {
-		this->width = 640; this->height = 360;
+		this->width = 800; this->height = 448;
+		//this->width = 640; this->height = 360;
 	}
 	else {
-		this->width = 432; this->height = 240;
+		this->width = 640; this->height = 360;
+		//this->width = 432; this->height = 240;
 	}
 
 	if (cameraDevs.size() > 1) outputWidth = width*2;
@@ -350,9 +352,11 @@ bool Streamer::checkFramebufferReadiness(){
 	return true;
 }
 void Streamer::pushFrame(int i) {
-	//cout << "Logging: received frame from " << i << endl;
-
-	if(!initialized) return; //We're still setting up.
+	if(!initialized) {
+		cout << "recieved frame from " << i << " but not initialized yet" << endl;
+		return;
+	}; //We're still setting up.
+	cout << "Logging: received frame from " << i << endl;
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/
