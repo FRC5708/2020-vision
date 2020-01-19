@@ -350,7 +350,7 @@ bool Streamer::checkFramebufferReadiness(){
 	return true;
 }
 void Streamer::pushFrame(int i) {
-	//cout << "Logging: received frame from " << i << endl;
+	cout << "Logging: received frame from " << i << endl;
 
 	if(!initialized) return; //We're still setting up.
 	/* Updates framebuffer section for camera $i

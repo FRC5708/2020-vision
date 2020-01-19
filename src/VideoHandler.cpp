@@ -249,8 +249,8 @@ void ThreadedVideoReader::resetTimeout(){
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
 			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
 			resetLock.lock();
-			
-			ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest); // Reset the pipeline
+			int type = bufferinfo.type;
+			ioctl(camfd, VIDIOC_STREAMOFF, &type); // Reset the pipeline
 			startStreaming(); // STREAMON and requeue buffers
 
 			resetLock.unlock();
