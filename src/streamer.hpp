@@ -46,6 +46,7 @@ class Streamer {
 	bool checkFramebufferReadiness(); //Check if we are read to write the framebuffer. If so, do so.
 	std::mutex frameLock; // required in order to read from the public flags of ThreadedVideoReader
 	std::vector<bool> readyState;
+	bool initialized=false;
 
 public:
 	Streamer(std::function<void(void)>);

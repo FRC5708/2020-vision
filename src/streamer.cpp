@@ -205,15 +205,6 @@ void Streamer::start() {
 	else {
 		this->width = 432; this->height = 240;
 	}
-	visionCamera=new ThreadedVideoReader(width, height, cameraDevs[0].c_str(),std::bind(&Streamer::pushFrame,this,0));//Bind callback to relevant id.
-	cameraReaders.push_back(visionCamera);
-	for (unsigned int i = 1; i < cameraDevs.size(); ++i) {//i doesn't start at 0!!
-		cameraReaders.push_back(
-			new ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
-		);
-		readyState.push_back(false);
-		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
-	}
 
 	if (cameraDevs.size() > 1) outputWidth = width*2;
 	else outputWidth = width;
@@ -225,6 +216,19 @@ void Streamer::start() {
 	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2); //Framebuffer matrix
 
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
+
+	readyState.push_back(false);
+	visionCamera=new ThreadedVideoReader(width, height, cameraDevs[0].c_str(),std::bind(&Streamer::pushFrame,this,0));//Bind callback to relevant id.
+	cameraReaders.push_back(visionCamera);
+	for (unsigned int i = 1; i < cameraDevs.size(); ++i) {//i doesn't start at 0!!
+		cameraReaders.push_back(
+			new ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+		);
+		readyState.push_back(false);
+		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
+	}
+
+	
 
 	// Start the thread that listens for the signal from the driver station
 	std::thread([this]() {
@@ -346,6 +350,8 @@ bool Streamer::checkFramebufferReadiness(){
 	return true;
 }
 void Streamer::pushFrame(int i) {
+	if(!initialized) return; //We're still setting up.
+	cout << "Logging: received frame from " << i << endl;
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/
