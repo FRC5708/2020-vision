@@ -41,6 +41,9 @@ class Streamer {
 
 	std::vector<ThreadedVideoReader*> cameraReaders;
 
+	// The thread that listens for the signal from the driver station
+	void dsListener();
+
 	//void Streamer::gotCameraFrame();
 	void pushFrame(int i);
 	bool checkFramebufferReadiness(); //Check if we are read to write the framebuffer. If so, do so.

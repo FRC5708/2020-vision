@@ -20,7 +20,7 @@
 #include <arpa/inet.h>
 
 
-using std::cout; using std::endl; using std::string; using std::vector;
+using std::cout; using std::cerr; using std::endl; using std::string; using std::vector;
 
 pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 	pid_t pid = fork();
@@ -213,112 +213,115 @@ void Streamer::start() {
 	if (cameraDevs.size() <= 2) outputHeight = height;
 	else outputHeight = height*2;
 
+	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
 	correctedWidth = ceil(outputWidth/16.0)*16;
 	correctedHeight = ceil(outputHeight/16.0)*16;
-	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2); //Framebuffer matrix
+	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
 
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
-	readyState.push_back(false);
+	readyState.resize(cameraDevs.size());
+
 	visionCamera=new ThreadedVideoReader(width, height, cameraDevs[0].c_str(),std::bind(&Streamer::pushFrame,this,0));//Bind callback to relevant id.
 	cameraReaders.push_back(visionCamera);
+	
 	for (unsigned int i = 1; i < cameraDevs.size(); ++i) {//i doesn't start at 0!!
 		cameraReaders.push_back(
 			new ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
-		readyState.push_back(false);
-		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
 
 	initialized = true;	
 
 	// Start the thread that listens for the signal from the driver station
-	std::thread([this]() {
-		
-		servFd = socket(AF_INET6, SOCK_STREAM, 0);
-		if (servFd < 0) {
-			perror("socket");
-			return;
-		}
-		
-		int flag = 1;
-		if (setsockopt(servFd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)) == -1) {
-			perror("setsockopt");
-		}
-		
-		struct sockaddr_in6 servAddr;
-		memset(&servAddr, 0, sizeof(servAddr));
-		
-		servAddr.sin6_family = AF_INET6;
-		servAddr.sin6_addr = in6addr_any;
-		servAddr.sin6_port = htons(5807); //Port that resets magic
-	
-		if (bind(servFd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
-			perror("bind");
-			return;
-		}
-		if (listen(servFd, 10)== -1) {
-			perror("listen");
-			return;
-		}
-		
-		while (true) {
-			struct sockaddr_in6 clientAddr;
-			socklen_t clientAddrLen = sizeof(clientAddr);
-			int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
-			if (clientFd < 0) {
-				perror("accept");
-				continue;
-			}
-
-			// At this point, a connection has been recieved from the driver station.
-			// gStreamer will now be set up to stream to the driver station.
-
-			handlingLaunchRequest = true;
-
-			for (auto i : gstInstances) {
-				
-				cout << "killing previous instance: " << i.pid << "   " << endl;
-				if (kill(i.pid, SIGTERM) == -1) {
-					perror("kill");
-				}
-				waitpid(i.pid, nullptr, 0);
-			}
-			
-			char bitrate[16];
-			ssize_t len = read(clientFd, bitrate, sizeof(bitrate));
-			bitrate[len] = '\0';
-			
-			const char message[] = "Launching remote GStreamer...\n";
-			if (write(clientFd, message, sizeof(message)) == -1) {
-				perror("write");
-			}
-
-			if (close(clientFd) == -1) perror("close");
-			
-
-			// wait for client's gstreamer to initialize
-			sleep(2);
-
-			char strAddr[INET6_ADDRSTRLEN];
-			getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
-    		0,0,NI_NUMERICHOST);
-
-			//vector<string> outputVideoDevs = cameraDevs;
-			//outputVideoDevs[0] = loopbackDev;
-			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", {loopbackDev});
-
-			// It was planned to draw an overlay over the video feed in the driver station.
-			// This sends the overlay data.
-			cout << "Starting UDP stream..." << endl;
-			if (computer_udp) delete computer_udp;
-			computer_udp = new DataComm(strAddr, "5806");
-
-			handlingLaunchRequest = false;
-		}
-	}).detach();
-	
+	std::thread(&Streamer::dsListener, this).detach();
 }
+
+void Streamer::dsListener() {
+	
+	servFd = socket(AF_INET6, SOCK_STREAM, 0);
+	if (servFd < 0) {
+		perror("socket");
+		return;
+	}
+	
+	int flag = 1;
+	if (setsockopt(servFd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)) == -1) {
+		perror("setsockopt");
+	}
+	
+	struct sockaddr_in6 servAddr;
+	memset(&servAddr, 0, sizeof(servAddr));
+	
+	servAddr.sin6_family = AF_INET6;
+	servAddr.sin6_addr = in6addr_any;
+	servAddr.sin6_port = htons(5807); //Port that resets magic
+
+	if (bind(servFd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
+		perror("bind");
+		return;
+	}
+	if (listen(servFd, 10)== -1) {
+		perror("listen");
+		return;
+	}
+	
+	while (true) {
+		struct sockaddr_in6 clientAddr;
+		socklen_t clientAddrLen = sizeof(clientAddr);
+		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
+		if (clientFd < 0) {
+			perror("accept");
+			continue;
+		}
+
+		// At this point, a connection has been recieved from the driver station.
+		// gStreamer will now be set up to stream to the driver station.
+
+		handlingLaunchRequest = true;
+
+		for (auto i : gstInstances) {
+			
+			cout << "killing previous instance: " << i.pid << "   " << endl;
+			if (kill(i.pid, SIGTERM) == -1) {
+				perror("kill");
+			}
+			waitpid(i.pid, nullptr, 0);
+		}
+		
+		char bitrate[16];
+		ssize_t len = read(clientFd, bitrate, sizeof(bitrate));
+		bitrate[len] = '\0';
+		
+		const char message[] = "Launching remote GStreamer...\n";
+		if (write(clientFd, message, sizeof(message)) == -1) {
+			perror("write");
+		}
+
+		if (close(clientFd) == -1) perror("close");
+		
+
+		// wait for client's gstreamer to initialize
+		sleep(2);
+
+		char strAddr[INET6_ADDRSTRLEN];
+		getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
+		0,0,NI_NUMERICHOST);
+
+		//vector<string> outputVideoDevs = cameraDevs;
+		//outputVideoDevs[0] = loopbackDev;
+		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", {loopbackDev});
+
+		// It was planned to draw an overlay over the video feed in the driver station.
+		// This sends the overlay data.
+		cout << "Starting UDP stream..." << endl;
+		if (computer_udp) delete computer_udp;
+		computer_udp = new DataComm(strAddr, "5806");
+
+		handlingLaunchRequest = false;
+	}
+}
+
 
 // get frame in the color space that the vision processing uses
 cv::Mat Streamer::getBGRFrame() {
@@ -353,32 +356,39 @@ bool Streamer::checkFramebufferReadiness(){
 }
 void Streamer::pushFrame(int i) {
 	if(!initialized) {
-		cout << "recieved frame from " << i << " but not initialized yet" << endl;
+		cout << "recieved frame from " << i << " but not initialized yet (this theoretically shouldn't happen)" << endl;
 		return;
 	}; //We're still setting up.
 	cout << "Logging: received frame from " << i << endl;
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/
-	//TODO: potential video tearing if the ThreadedVideoReader writes to the buffer at the same time getMat is called.
 	frameLock.lock(); //We don't want this happening concurrently.
 	readyState[i]=true;
 	cv::Mat drawnOn;
 	switch(i){
-		case 0: //Vision camera
-			drawnOn = visionCamera->getMat().clone(); // Draw an overlay on the frame before handing it off to gStreamer
+		case 0: { //Vision camera
+			
+			cv::Mat visionFrame = frameBuffer.colRange(0, width).rowRange(0, height);
+			visionCamera->getMat().copyTo(visionFrame);
+
+			// Draw an overlay on the frame before handing it off to gStreamer
 			if (annotateFrame != nullptr) annotateFrame(drawnOn);
-			drawnOn.copyTo(frameBuffer.colRange(0, width).rowRange(0, height));
+
 			visionFrameNotifier(); //New vision frame
 			break;
+		}
 		case 1: //Second camera
-			cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, outputWidth).rowRange(0, height));
+			cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(0, height));
 			break;
 		case 2: //Third camera
-			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, outputHeight));
+			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, height*2));
+			break;
+		case 3: //Fourth camera (untested)
+			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(height, height*2));
 			break;
 		default:
-			perror("More than three camera output is unsupported at this time.");
+			cerr << "More than four cameras are unsupported at this time." << endl;
 			return;
 	}
 	if(checkFramebufferReadiness()){

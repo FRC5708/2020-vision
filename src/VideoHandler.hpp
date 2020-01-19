@@ -20,10 +20,14 @@ protected:
 	void* currentBuffer;
 	std::vector<void*> buffers;
 	struct v4l2_buffer bufferinfo; 
-	struct v4l2_requestbuffers bufrequest; //Stuff needs this.
+	struct v4l2_requestbuffers bufrequest; // Not modified outside of openReader()
 
-	void startStreaming();
+	bool hasFirstFrame = false;
+
 	void setExposureVals(bool isAuto, int exposure);
+
+	void openReader();
+	void closeReader();
 
 public:
 	// size of the video
@@ -38,7 +42,7 @@ public:
 	cv::Mat getMat();
 
 	// Grab the next frame from the camera. 
-    void grabFrame(bool firstTime = false);
+    void grabFrame();
 
 	// Turns off auto-exposure (on by default) and sets the exposure manually. 
 	// value is a camera-specific integer. 50 is "kinda dark" for our cameras.
@@ -60,10 +64,9 @@ public:
 private:
 	std::chrono::steady_clock timeout_clock;
 
-	void resetTimeout();
-	void mainLoop();
+	void resetterMonitor();
 	// Only reset the camera if it's been dead for over a second.
-	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(1000); 
+	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 
 	std::mutex resetLock;
 	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handle
 	

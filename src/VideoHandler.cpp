@@ -19,11 +19,13 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
 
 VideoReader::VideoReader(int width, int height, const char* file) {
 	this->width = width; this->height = height; deviceFile = file;
+}
+void VideoReader::openReader() {
 
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
-	camfd = open(file, O_RDWR);
+	camfd = open(deviceFile.c_str(), O_RDWR);
 	if (camfd == -1) {
 		perror("open");
 		exit(1);
@@ -65,11 +67,7 @@ VideoReader::VideoReader(int width, int height, const char* file) {
 	buffers.resize(bufrequest.count);
 	
 
-
-   startStreaming(); 
-}
-void VideoReader::startStreaming() {
-	for (unsigned int i = 0; i < bufrequest.count; ++i) {
+   for (unsigned int i = 0; i < bufrequest.count; ++i) {
 		bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		bufferinfo.memory = V4L2_MEMORY_MMAP;
 		bufferinfo.index = i;
@@ -121,17 +119,36 @@ void VideoReader::startStreaming() {
 			perror("VIDIOC_QBUF");
 		}
 	}
-	grabFrame(true);
+}
+
+void VideoReader::closeReader() {
+	int type = bufferinfo.type;
+	ioctl(camfd, VIDIOC_STREAMOFF, &type); //Send the off ioctl.
+
+	// unmap the frame buffers
+	for (unsigned int i = 0; i < bufrequest.count; ++i) {
+
+		bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		bufferinfo.memory = V4L2_MEMORY_MMAP;
+		bufferinfo.index = i;
+		
+		if(ioctl(camfd, VIDIOC_QUERYBUF, &bufferinfo) < 0){
+			perror("Unable to deallocate buffer. VIDIOC_QUERYBUF");
+			continue;
+		}
+		munmap(buffers[i], bufferinfo.length);
+	}
+	close(camfd); //Close the camera fd.
+
+	hasFirstFrame = false;
 }
 
 VideoReader::~VideoReader(){
 	//Destructor
-	int type = bufferinfo.type;
-	ioctl(camfd, VIDIOC_STREAMOFF, &type); //Send the off ioctl.
-	close(camfd); //Close the camera fd.
+	closeReader();
 }
 
-void VideoReader::grabFrame(bool firstTime) {
+void VideoReader::grabFrame() {
 	//cv::Mat otherBuffer;
 	
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
@@ -149,15 +166,21 @@ void VideoReader::grabFrame(bool firstTime) {
 	assert((signed) bufferinfo.length == width*height*2);
 
 	// put the old buffer back into the queue
-	if(!firstTime && ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
+	if(hasFirstFrame && ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
 		perror("VIDIOC_QBUF");
 		exit(1);
 	}
+
+	hasFirstFrame = true;
 }
 
 
 cv::Mat VideoReader::getMat() {
-	return cv::Mat(height, width, CV_8UC2, currentBuffer);
+	if (hasFirstFrame) return cv::Mat(height, width, CV_8UC2, currentBuffer);
+	else {
+		std::cerr << "Frame was requested from uninitialized camera " << deviceFile << "!" << std::endl;
+		return cv::Mat();
+	}
 }   
 /*void VideoReader::setExposure(int value) {
 	struct v4l2_ext_controls controls;
@@ -231,32 +254,36 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 
 void ThreadedVideoReader::grabFrame(bool firstTime) {
 	resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
+
+	last_update = timeout_clock.now(); // We're gonna try to get a frame. Reset the timeout.
 	VideoReader::grabFrame();
-	last_update = timeout_clock.now(); //We succesfully grabbed a frame. Reset the timeout.
 }
 ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback)
 : VideoReader(width, height, file) {
 	this->newFrameCallback=newFrameCallback;
 	timeout_clock=std::chrono::steady_clock();
 	last_update = timeout_clock.now();
-	resetTimeoutThread = std::thread(&ThreadedVideoReader::resetTimeout,this); //Start monitoring thread.
-	mainLoopThread = std::thread(&ThreadedVideoReader::mainLoop,this);
+
+	mainLoopThread = std::thread([this]() {
+		openReader();
+		
+		resetTimeoutThread = std::thread(&ThreadedVideoReader::resetterMonitor,this); //Start monitoring thread.
+
+		while (true) {
+			this->grabFrame();
+			this->newFrameCallback();
+		}
+	});
 }
 
-void ThreadedVideoReader::resetTimeout(){	//Seperate thread that resets the camera buffers if it hangs.
+void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.
 	while(1){
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
 			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
 			resetLock.lock();
 			
-            int type = bufferinfo.type;
-			if (ioctl(camfd, VIDIOC_STREAMOFF, &type) < 0) { // Reset the pipeline
-				perror("VIDIOC_STREAMOFF");
-				continue;
-			}
-			sleep(1);
-
-			startStreaming(); // STREAMON and requeue buffers
+           closeReader();
+		   openReader();
 
 			resetLock.unlock();
 		}
@@ -264,12 +291,6 @@ void ThreadedVideoReader::resetTimeout(){	//Seperate thread that resets the came
 	}
 }
 
-void ThreadedVideoReader::mainLoop() {
-	while (true) {
-		grabFrame();
-		newFrameCallback();
-	}
-}
 
 // https://gist.github.com/thearchitect/96ab846a2dae98329d1617e538fbca3c
 void VideoWriter::openWriter(int width, int height, const char* file) {		
