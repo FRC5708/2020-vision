@@ -337,7 +337,7 @@ bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
 	for(unsigned int i=0;i<cameraDevs.size();i++){
 		if(!readyState[i]){
-			if(time - cameraReaders[i].last_update < std::chrono::milliseconds(30)){
+			if(time - cameraReaders[i].last_update < std::chrono::milliseconds(45)){
 				readyState[i] = true; //Cache result of timeout to avoid unnesccesary comparisons
 			}else{
 				return false; 
