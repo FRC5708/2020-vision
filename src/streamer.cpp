@@ -208,13 +208,13 @@ void Streamer::start() {
 
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(
-			ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			std::make_unique<ThreadedVideoReader>(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		readyState.push_back(false);
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
 
-	visionCamera = &cameraReaders[0];
+	visionCamera = &*cameraReaders[0];
 
 	if (cameraDevs.size() > 1) outputWidth = width*2;
 	else outputWidth = width;
@@ -337,7 +337,7 @@ bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
 	for(unsigned int i=0;i<cameraDevs.size();i++){
 		if(!readyState[i]){
-			if(time - cameraReaders[i].last_update < std::chrono::milliseconds(45)){
+			if(time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
 				readyState[i] = true; //Cache result of timeout to avoid unnesccesary comparisons
 			}else{
 				return false; 
@@ -362,10 +362,10 @@ void Streamer::pushFrame(int i) {
 			visionFrameNotifier(); //New vision frame
 			break;
 		case 1: //Second camera
-			cameraReaders[1].getMat().copyTo(frameBuffer.colRange(width, outputWidth).rowRange(0, height));
+			cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, outputWidth).rowRange(0, height));
 			break;
 		case 2: //Third camera
-			cameraReaders[2].getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, outputHeight));
+			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, outputHeight));
 			break;
 		default:
 			perror("More than three camera output is unsupported at this time.");

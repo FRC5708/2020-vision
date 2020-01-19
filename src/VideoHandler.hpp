@@ -56,7 +56,7 @@ public:
 	std::function<void(void)> newFrameCallback; //Frick  me and my badness.
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
-	virtual ~ThreadedVideoReader(); //Does nothing; required to compile?
+	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
 private:
 	std::chrono::steady_clock timeout_clock;
 

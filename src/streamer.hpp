@@ -5,6 +5,8 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <memory>
+
 #include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
@@ -37,7 +39,7 @@ class Streamer {
 
 	ThreadedVideoReader* visionCamera;
 
-	std::vector<ThreadedVideoReader> cameraReaders;
+	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;
 
 	//void Streamer::gotCameraFrame();
 	void pushFrame(int i);
