@@ -243,15 +243,14 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 	mainLoopThread = std::thread(&ThreadedVideoReader::mainLoop,this);
 }
 
-void ThreadedVideoReader::resetTimeout(){
-	return;
-	//Seperate thread that resets the camera buffers if it hangs.
+void ThreadedVideoReader::resetTimeout(){	//Seperate thread that resets the camera buffers if it hangs.
 	while(1){
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
 			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
 			resetLock.lock();
 			
-			if (ioctl(camfd, VIDIOC_STREAMOFF, &bufrequest) < 0) { // Reset the pipeline
+            int type = bufferinfo.type;
+			if (ioctl(camfd, VIDIOC_STREAMOFF, &type) < 0) { // Reset the pipeline
 				perror("VIDIOC_STREAMOFF");
 				continue;
 			}
