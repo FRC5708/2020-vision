@@ -205,16 +205,15 @@ void Streamer::start() {
 	else {
 		this->width = 432; this->height = 240;
 	}
-
-	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
+	visionCamera=new ThreadedVideoReader(width, height, cameraDevs[0].c_str(),std::bind(&Streamer::pushFrame,this,0));//Bind callback to relevant id.
+	cameraReaders.push_back(visionCamera);
+	for (unsigned int i = 1; i < cameraDevs.size(); ++i) {//i doesn't start at 0!!
 		cameraReaders.push_back(
-			std::make_unique<ThreadedVideoReader>(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			new ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		readyState.push_back(false);
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
 	}
-
-	visionCamera = &*cameraReaders[0];
 
 	if (cameraDevs.size() > 1) outputWidth = width*2;
 	else outputWidth = width;

@@ -39,7 +39,7 @@ class Streamer {
 
 	ThreadedVideoReader* visionCamera;
 
-	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;
+	std::vector<ThreadedVideoReader*> cameraReaders;
 
 	//void Streamer::gotCameraFrame();
 	void pushFrame(int i);
