@@ -192,7 +192,7 @@ void Streamer::start() {
 	}
 	
 	std::cout << "main (vision) camera: " << cameraDevs[0] << std::endl;
-	for (int i = 0; i < cameraDevs.size(); ++i) {
+	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		std::cout << "Camera " << i << ": " << cameraDevs[i] << std::endl;
 	}
 
@@ -206,9 +206,9 @@ void Streamer::start() {
 		this->width = 432; this->height = 240;
 	}
 
-	for (int i = 0; i < cameraDevs.size(); ++i) {
+	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(
-			ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(pushFrame,i))//Bind callback to relevant id.
+			ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		readyState.push_back(false);
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give the cameras some time.
@@ -335,7 +335,7 @@ void Streamer::setLowExposure(bool value) {
 
 bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
-	for(int i=0;i<cameraDevs.size();i++){
+	for(unsigned int i=0;i<cameraDevs.size();i++){
 		if(!readyState[i]){
 			if(time - cameraReaders[i].last_update < std::chrono::milliseconds(30)){
 				readyState[i] = true; //Cache result of timeout to avoid unnesccesary comparisons
@@ -371,9 +371,9 @@ void Streamer::pushFrame(int i) {
 			perror("More than three camera output is unsupported at this time.");
 			return;
 	}
-	if(checkFramebufferReadiness())){
+	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);
-		for(int i=0;i<cameraDevs.size();i++){
+		for(unsigned int i=0;i<cameraDevs.size();i++){
 			readyState[i]=false;
 		}
 	}

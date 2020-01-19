@@ -35,8 +35,8 @@ volatile bool visionEnabled = false;
 
 std::vector<VisionTarget> lastResults;
 
-std::chrono::steady_clock clock;
-auto currentFrameTime = clock.now();
+std::chrono::steady_clock timing_clock;
+auto currentFrameTime = timing_clock.now();
 
 // c++ doesn't have real semaphores, so we must use the jank condition_variable to synchronize threads.
 std::mutex waitMutex; 
@@ -229,7 +229,7 @@ void visionFrameNotifier(){
 // It wakes up the vision processing thread if it is waiting on a new frame.
 // if vision processing is disabled, it wakes up the thread only once every 2 seconds.
 
-	auto time = clock.now();
+	auto time = timing_clock.now();
 	if (visionEnabled || (time - currentFrameTime) > std::chrono::seconds(2)) {
 
 		currentFrameTime = time;

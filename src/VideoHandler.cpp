@@ -232,13 +232,13 @@ void ThreadedVideoReader::grabFrame(bool firstTime) {
 	VideoReader::grabFrame();
 	last_update = timeout_clock.now(); //We succesfully grabbed a frame. Reset the timeout.
 }
-ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, const char* file, std::function<void(void)> newFrameCallback)
+ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback)
 : VideoReader(width, height, file) {
 	this->newFrameCallback=newFrameCallback;
 	timeout_clock=std::chrono::steady_clock();
 	last_update = timeout_clock.now();
-	resetTimeoutThread = std::thread(resetTimeout); //Start monitoring thread.
-	mainLoopThread = std::thread(mainLoop);
+	resetTimeoutThread = std::thread(&ThreadedVideoReader::resetTimeout,this); //Start monitoring thread.
+	mainLoopThread = std::thread(&ThreadedVideoReader::mainLoop,this);
 }
 
 void ThreadedVideoReader::resetTimeout(){

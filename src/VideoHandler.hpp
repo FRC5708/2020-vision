@@ -3,6 +3,7 @@
 #include <vector>
 #include <chrono>
 #include <mutex>
+#include <thread>
 
 #include <opencv2/core.hpp>
 #include <linux/videodev2.h>
@@ -50,12 +51,12 @@ public:
 
 class ThreadedVideoReader : public VideoReader {
 public:
-	ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback);
-	void grabFrame(bool firstTime = false) override;
+	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
+	void grabFrame(bool firstTime = false);
 	std::function<void(void)> newFrameCallback; //Frick  me and my badness.
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
-
+	virtual ~ThreadedVideoReader(); //Does nothing; required to compile?
 private:
 	std::chrono::steady_clock timeout_clock;
 
@@ -65,6 +66,7 @@ private:
 	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(1000); 
 	std::mutex resetLock;
 	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handle
+	
 };
 
 
