@@ -361,31 +361,35 @@ void Streamer::pushFrame(int i) {
 	*/
 	frameLock.lock(); //We don't want this happening concurrently.
 	readyState[i]=true;
-	cv::Mat drawnOn;
-	switch(i){
-		case 0: { //Vision camera
-			
-			cv::Mat visionFrame = frameBuffer.colRange(0, width).rowRange(0, height);
-			visionCamera->getMat().copyTo(visionFrame);
+	try {
+		switch(i){
+			case 0: { //Vision camera
+				
+				cv::Mat visionFrame = frameBuffer.colRange(0, width).rowRange(0, height);
+				visionCamera->getMat().copyTo(visionFrame);
 
-			// Draw an overlay on the frame before handing it off to gStreamer
-			if (annotateFrame != nullptr) annotateFrame(drawnOn);
+				// Draw an overlay on the frame before handing it off to gStreamer
+				if (annotateFrame != nullptr) annotateFrame(visionFrame);
 
-			visionFrameNotifier(); //New vision frame
-			break;
+				visionFrameNotifier(); //New vision frame
+				break;
+			}
+			case 1: //Second camera
+				cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(0, height));
+				break;
+			case 2: //Third camera
+				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, height*2));
+				break;
+			case 3: //Fourth camera (untested)
+				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(height, height*2));
+				break;
+			default:
+				cerr << "More than four cameras are unsupported at this time." << endl;
+				return;
 		}
-		case 1: //Second camera
-			cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(0, height));
-			break;
-		case 2: //Third camera
-			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, height*2));
-			break;
-		case 3: //Fourth camera (untested)
-			cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(height, height*2));
-			break;
-		default:
-			cerr << "More than four cameras are unsupported at this time." << endl;
-			return;
+	} catch (VideoReader::NotInitializedException& e) {
+		frameLock.unlock();
+		return;
 	}
 	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);

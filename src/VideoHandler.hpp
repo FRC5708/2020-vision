@@ -27,6 +27,7 @@ protected:
 	void setExposureVals(bool isAuto, int exposure);
 
 	void openReader();
+	bool tryOpenReader();
 	void closeReader();
 
 public:
@@ -42,7 +43,7 @@ public:
 	cv::Mat getMat();
 
 	// Grab the next frame from the camera. 
-    void grabFrame();
+    bool grabFrame();
 
 	// Turns off auto-exposure (on by default) and sets the exposure manually. 
 	// value is a camera-specific integer. 50 is "kinda dark" for our cameras.
@@ -50,14 +51,14 @@ public:
 	// Turns on auto-exposure.
 	void setAutoExposure() { setExposureVals(true, 50); }
 
-
+	class NotInitializedException : public std::exception {};
 };
 
 
 class ThreadedVideoReader : public VideoReader {
 public:
 	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
-	void grabFrame();
+	bool grabFrame();
 	std::function<void(void)> newFrameCallback;
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;

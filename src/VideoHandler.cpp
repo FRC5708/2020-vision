@@ -20,25 +20,27 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
 VideoReader::VideoReader(int width, int height, const char* file) {
 	this->width = width; this->height = height; deviceFile = file;
 }
-void VideoReader::openReader() {
+bool VideoReader::tryOpenReader() {
 
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
-	camfd = open(deviceFile.c_str(), O_RDWR);
-	if (camfd == -1) {
+	while ((camfd = open(deviceFile.c_str(), O_RDWR)) < 0) {
 		perror("open");
-		exit(1);
+		if (errno == EBUSY) {
+			sleep(1);
+		}
+		else return false;
 	}
 
 	struct v4l2_capability cap;
 	if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
 		perror("VIDIOC_QUERYCAP");
-		exit(1);
+		return false;
 	}
 	if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
 		fprintf(stderr, "The device does not handle single-planar video capture.\n");
-		exit(1);
+		return false;
 	}
 
 	struct v4l2_format format;
@@ -48,9 +50,15 @@ void VideoReader::openReader() {
 	format.fmt.pix.height = height;
 	format.fmt.pix.field = V4L2_FIELD_INTERLACED;
 
-	if(ioctl(camfd, VIDIOC_S_FMT, &format) < 0){
-		perror("VIDIOC_S_FMT");
-		exit(1);
+	while (ioctl(camfd, VIDIOC_S_FMT, &format) < 0){
+		perror((deviceFile + " VIDIOC_S_FMT").c_str());
+		if (errno == EBUSY) {
+			sleep(1);
+			continue;
+		}
+		else {
+			return false;
+		}
 	}
 
 	bufrequest.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -59,7 +67,7 @@ void VideoReader::openReader() {
 
 	if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
 		perror("VIDIOC_REQBUFS");
-		exit(1);
+		return false;
 	}
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
 
@@ -74,7 +82,7 @@ void VideoReader::openReader() {
 		
 		if(ioctl(camfd, VIDIOC_QUERYBUF, &bufferinfo) < 0){
 			perror("VIDIOC_QUERYBUF");
-			exit(1);
+			return false;
 		}
 
 		buffers[i] = mmap(
@@ -87,7 +95,7 @@ void VideoReader::openReader() {
 		);
 		if(buffers[i] == MAP_FAILED){
 			perror("mmap");
-			exit(1);
+			return false;
 		}
 		memset(buffers[i], 0, bufferinfo.length);
 	}
@@ -105,7 +113,7 @@ void VideoReader::openReader() {
 	int type = bufferinfo.type;
 	if(ioctl(camfd, VIDIOC_STREAMON, &type) < 0){
 		perror("VIDIOC_STREAMON");
-		return;
+		return false;
 	}
 
 	for (unsigned int i = 0; i < bufrequest.count; ++i) {
@@ -119,11 +127,19 @@ void VideoReader::openReader() {
 			perror("VIDIOC_QBUF");
 		}
 	}
+	return true;
+}
+void VideoReader::openReader() {
+	while (!tryOpenReader()) {
+		std::cerr << "Failed to open " << deviceFile << "! Retrying in 3 seconds..." << std::endl;
+		closeReader();
+		sleep(3);
+	}
 }
 
 void VideoReader::closeReader() {
 	int type = bufferinfo.type;
-	ioctl(camfd, VIDIOC_STREAMOFF, &type); //Send the off ioctl.
+	if (ioctl(camfd, VIDIOC_STREAMOFF, &type) < 0) perror("VIDEOC_STREAMOFF"); //Send the off ioctl.
 
 	// unmap the frame buffers
 	for (unsigned int i = 0; i < bufrequest.count; ++i) {
@@ -138,7 +154,13 @@ void VideoReader::closeReader() {
 		}
 		munmap(buffers[i], bufferinfo.length);
 	}
-	close(camfd); //Close the camera fd.
+	// Deallocate the buffers from the driver 
+	bufrequest.count = 0;
+	if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
+		perror("Deallocating buffers: VIDIOC_REQBUFS");
+	}
+
+	if (close(camfd) < 0) perror("close"); //Close the camera fd.
 
 	hasFirstFrame = false;
 }
@@ -148,7 +170,7 @@ VideoReader::~VideoReader(){
 	closeReader();
 }
 
-void VideoReader::grabFrame() {
+bool VideoReader::grabFrame() {
 	
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
 	bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -157,7 +179,7 @@ void VideoReader::grabFrame() {
 	int ret = ioctl(camfd, VIDIOC_DQBUF, &bufferinfo);
 	if(ret < 0) {
 		perror("VIDIOC_DQBUF");
-		 return;
+		 return false;
 	}
 
 	currentBuffer = buffers[bufferinfo.index];
@@ -167,10 +189,11 @@ void VideoReader::grabFrame() {
 	// put the old buffer back into the queue
 	if(hasFirstFrame && ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
 		perror("VIDIOC_QBUF");
-		exit(1);
+		return false;
 	}
 
 	hasFirstFrame = true;
+	return true;
 }
 
 
@@ -178,7 +201,7 @@ cv::Mat VideoReader::getMat() {
 	if (hasFirstFrame) return cv::Mat(height, width, CV_8UC2, currentBuffer);
 	else {
 		std::cerr << "Frame was requested from uninitialized camera " << deviceFile << "!" << std::endl;
-		return cv::Mat();
+		throw NotInitializedException();
 	}
 }   
 
@@ -208,11 +231,11 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 }
 
 
-void ThreadedVideoReader::grabFrame() {
+bool ThreadedVideoReader::grabFrame() {
 	resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
-
-	last_update = timeout_clock.now(); // We're gonna try to get a frame. Reset the timeout.
-	VideoReader::grabFrame();
+	bool goodGrab = VideoReader::grabFrame();
+	if (goodGrab) last_update = timeout_clock.now(); // We've successfully grabbed a frame. Reset the timeout.
+	return goodGrab;
 }
 ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback)
 : VideoReader(width, height, file) {
@@ -226,8 +249,10 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 		resetTimeoutThread = std::thread(&ThreadedVideoReader::resetterMonitor,this); //Start monitoring thread.
 
 		while (true) {
-			this->grabFrame();
-			this->newFrameCallback();
+			if (grabFrame()) {
+				resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
+				this->newFrameCallback();
+			}
 		}
 	});
 }
@@ -239,7 +264,10 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 			resetLock.lock();
 			
            closeReader();
+		   sleep(4);
 		   openReader();
+
+		   last_update = timeout_clock.now();
 
 			resetLock.unlock();
 		}

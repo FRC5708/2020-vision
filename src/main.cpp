@@ -77,7 +77,8 @@ void ControlSocket() {
 	freeaddrinfo(result);
 
 	if (sockfd == -1) {
-		std::cout << "could not connect to control socket" << std::endl;
+		std::cerr << "could not connect to control socket" << std::endl;
+		return;
 	}
 
 	while (true) {
