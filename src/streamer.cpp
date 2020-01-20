@@ -221,6 +221,7 @@ void Streamer::start() {
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	readyState.resize(cameraDevs.size());
+	cameraFrameCounts.resize(cameraDevs.size());
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
@@ -355,12 +356,13 @@ void Streamer::pushFrame(int i) {
 		cout << "recieved frame from " << i << " but not initialized yet (this theoretically shouldn't happen)" << endl;
 		return;
 	}; //We're still setting up.
-	cout << "Logging: received frame from " << i << endl;
+	//cout << "Logging: received frame from " << i << endl;
 	/* Updates framebuffer section for camera $i
 	** If we are ready to go, write to the videowriter.
 	*/
 	frameLock.lock(); //We don't want this happening concurrently.
 	readyState[i]=true;
+	++cameraFrameCounts[i];
 	try {
 		switch(i){
 			case 0: { //Vision camera
@@ -393,6 +395,23 @@ void Streamer::pushFrame(int i) {
 	}
 	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);
+		
+		auto now = std::chrono::steady_clock().now();
+		auto elapsed = now - lastReport;
+		if (elapsed >= std::chrono::seconds(1)) {
+			cout << "In the past " << std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count()
+			<< " seconds, " << frameCount << " pushed frames: ";
+			for (int i = 0; i < cameraFrameCounts.size(); ++i) {
+				cout << cameraFrameCounts[i] << " from cam " << i;
+				if (i != cameraFrameCounts.size() - 1) cout << ", ";
+				cameraFrameCounts[i] = 0;
+			}
+			cout << endl;
+			frameCount = 0;
+			lastReport = now;
+		}
+		++frameCount;
+
 		for(unsigned int i=0;i<cameraDevs.size();i++){
 			readyState[i]=false;
 		}

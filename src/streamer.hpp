@@ -51,6 +51,10 @@ class Streamer {
 	std::vector<bool> readyState;
 	bool initialized=false;
 
+	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
+	int frameCount = 0;
+	std::vector<int> cameraFrameCounts;
+
 public:
 	Streamer(std::function<void(void)>);
 	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;

@@ -1,6 +1,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -223,6 +224,17 @@ void drawTargets(cv::Mat drawOn) {
 	for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
 		drawVisionPoints(i->drawPoints, drawOn);
 	}
+	
+	// draw thing to see if camera is updating
+	static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
+
+	// one revolution per second
+	double angle = 2*M_PI * 
+	std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
+	cv::line(drawOn, 
+	{ drawOn.cols/2, drawOn.rows/2 }, 
+	{ drawOn.cols/2 * (1 - sin(angle)), drawOn.rows/2 * (1 - cos(angle)) },
+	 { 0, 0 });
 }
 void visionFrameNotifier(){
 		
