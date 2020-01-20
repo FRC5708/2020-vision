@@ -149,7 +149,6 @@ VideoReader::~VideoReader(){
 }
 
 void VideoReader::grabFrame() {
-	//cv::Mat otherBuffer;
 	
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
 	bufferinfo.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -182,52 +181,9 @@ cv::Mat VideoReader::getMat() {
 		return cv::Mat();
 	}
 }   
-/*void VideoReader::setExposure(int value) {
-	struct v4l2_ext_controls controls;
-	memset(&controls, 0, sizeof(controls));
-	if (ioctl(camfd, VIDIOC_G_EXT_CTRLS, &controls) < 0) {
-		perror ("setExposure: VIDIOC_G_EXT_CTRLS");
-		return;
-	}
 
-	for (unsigned i = 0; i < controls.count; ++i) {
-		switch (controls.controls[i].id) {
-		case V4L2_CID_EXPOSURE_AUTO:
-			controls.controls[i].value = V4L2_EXPOSURE_MANUAL;
-
-		 case V4L2_CID_EXPOSURE_ABSOLUTE: 
-			controls.controls[i].value = value;
-		} 
-	}
-
-	if (ioctl(camfd, VIDIOC_S_EXT_CTRLS, &controls) < 0) {
-		perror("setExposure: VIDIOC_S_EXT_CTRLS");
-	}
-}*/
 void VideoReader::setExposureVals(bool isAuto, int exposure) {
-	/*struct v4l2_ext_controls controls;
-	memset(&controls, 0, sizeof(controls));
-	struct v4l2_ext_control ctrlArray[30];
-	memset(&ctrlArray, 0, sizeof(ctrlArray));
-
-	controls.controls = ctrlArray;
-	controls.count = sizeof(ctrlArray) / sizeof(v4l2_ext_control);
-	controls.which = V4L2_CTRL_WHICH_CUR_VAL;
-
-	if (ioctl(camfd, VIDIOC_G_EXT_CTRLS, &controls) < 0) {
-		perror ("resetExposure: VIDIOC_G_EXT_CTRLS");
-		return;
-	}
-	std::cout << "controls count: " << controls.count << std::endl;
-
-	for (unsigned i = 0; i < controls.count; ++i) {
-		switch (controls.controls[i].id == V4L2_CID_EXPOSURE_AUTO) {
-			controls.controls[i].value = V4L2_EXPOSURE_AUTO;
-		}
-	}
-	if (ioctl(camfd, VIDIOC_S_EXT_CTRLS, &controls) < 0) {
-		perror("resetExposure: VIDIOC_S_EXT_CTRLS");
-	}*/
+	
 	struct v4l2_ext_controls controls;
 	memset(&controls, 0, sizeof(controls));
 	struct v4l2_ext_control ctrlArray[2];
@@ -252,7 +208,7 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 }
 
 
-void ThreadedVideoReader::grabFrame(bool firstTime) {
+void ThreadedVideoReader::grabFrame() {
 	resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
 
 	last_update = timeout_clock.now(); // We're gonna try to get a frame. Reset the timeout.
@@ -277,7 +233,7 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 }
 
 void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.
-	while(1){
+	while (true) {
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
 			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
 			resetLock.lock();

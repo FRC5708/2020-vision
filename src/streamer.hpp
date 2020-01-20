@@ -39,7 +39,7 @@ class Streamer {
 
 	ThreadedVideoReader* visionCamera;
 
-	std::vector<ThreadedVideoReader*> cameraReaders;
+	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;
 
 	// The thread that listens for the signal from the driver station
 	void dsListener();

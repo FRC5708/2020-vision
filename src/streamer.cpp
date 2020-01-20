@@ -221,14 +221,12 @@ void Streamer::start() {
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	readyState.resize(cameraDevs.size());
-
-	visionCamera=new ThreadedVideoReader(width, height, cameraDevs[0].c_str(),std::bind(&Streamer::pushFrame,this,0));//Bind callback to relevant id.
-	cameraReaders.push_back(visionCamera);
 	
-	for (unsigned int i = 1; i < cameraDevs.size(); ++i) {//i doesn't start at 0!!
-		cameraReaders.push_back(
-			new ThreadedVideoReader(width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
+		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
+			width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
+		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 
 	initialized = true;	

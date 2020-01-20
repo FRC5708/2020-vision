@@ -53,11 +53,12 @@ public:
 
 };
 
+
 class ThreadedVideoReader : public VideoReader {
 public:
 	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
-	void grabFrame(bool firstTime = false);
-	std::function<void(void)> newFrameCallback; //Frick  me and my badness.
+	void grabFrame();
+	std::function<void(void)> newFrameCallback;
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
@@ -65,10 +66,10 @@ private:
 	std::chrono::steady_clock timeout_clock;
 
 	void resetterMonitor();
-	// Only reset the camera if it's been dead for over a second.
+	// Only reset the camera if it's been dead for over this amount of time.
 	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 
 	std::mutex resetLock;
-	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handle
+	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handles
 	
 };
 
