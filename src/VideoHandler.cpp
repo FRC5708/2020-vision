@@ -61,6 +61,26 @@ bool VideoReader::tryOpenReader() {
 		}
 	}
 
+	// set framerate
+	struct v4l2_streamparm streamparm;
+	memset(&streamparm, 0, sizeof(streamparm));
+	streamparm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	if (ioctl(camfd, VIDIOC_G_PARM, &streamparm) != 0){
+		perror("Setting framerate: VIDIOC_G_PARM");
+	}
+	else {
+		std::cout << "Attempting to maximize framerate by setting frame time to 1/120" << std::endl;
+		streamparm.parm.capture.capturemode |= V4L2_CAP_TIMEPERFRAME;
+		streamparm.parm.capture.timeperframe.numerator = 1;
+		streamparm.parm.capture.timeperframe.denominator = 1000;
+		if(ioctl(camfd, VIDIOC_S_PARM, &streamparm) !=0) {
+			perror("Setting framerate: VIDIOC_S_PARM");
+		}
+		else std::cout << "Frame time is: " << streamparm.parm.capture.timeperframe.numerator 
+		<< "/" << streamparm.parm.capture.timeperframe.denominator << std::endl;
+	}
+
+	// request memory buffers from the kernel
 	bufrequest.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	bufrequest.memory = V4L2_MEMORY_MMAP;
 	bufrequest.count = 4;
@@ -99,17 +119,7 @@ bool VideoReader::tryOpenReader() {
 		}
 		memset(buffers[i], 0, bufferinfo.length);
 	}
-
-	// get framerate
-	struct v4l2_frmivalenum frameinterval;
-	frameinterval.index = 0;
-	frameinterval.width = width;
-	frameinterval.height = height;
-	frameinterval.pixel_format = V4L2_PIX_FMT_YUYV;
-	ioctl(camfd, VIDIOC_ENUM_FRAMEINTERVALS, &frameinterval);
-	std::cout << "frame interval: " << frameinterval.discrete.numerator
-		<< "/" << frameinterval.discrete.denominator << std::endl;
-
+	
 	int type = bufferinfo.type;
 	if(ioctl(camfd, VIDIOC_STREAMON, &type) < 0){
 		perror("VIDIOC_STREAMON");
