@@ -5,52 +5,79 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <memory>
+
 #include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
 
-
+// Starts and manages gStreamer processes
+// Also intercepts the video stream from one camera to feed into vision processing
 class Streamer {	
 	cv::Mat image;
 
+	// Holds info about one gStreamer process. 
 	struct GstInstance {
 		pid_t pid;
-		std::string file;
 		std::string command;
 	};
 	std::vector<GstInstance> gstInstances;
 	
 	volatile bool handlingLaunchRequest = false;
-	void launchGStreamer(const char* recieveAddress, int bitrate, std::string port, std::string file);
+	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::vector<std::string> files);
 
-	std::string visionCameraDev, secondCameraDev, loopbackDev;
+	std::vector<std::string> cameraDevs;
 
-	pid_t ffmpegPID = 0;
+	
+	std::string loopbackDev;
+
 	int servFd;
 
-	std::vector<VisionTarget> drawTargets;
 	DataComm* computer_udp = nullptr;
 
 	VideoWriter videoWriter;
 
-	VideoReader camera;
-	int cameraIdx;
+	ThreadedVideoReader* visionCamera;
+
+	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;
+
+	// The thread that listens for the signal from the driver station
+	void dsListener();
+
+	//void Streamer::gotCameraFrame();
+	void pushFrame(int i);
+	bool checkFramebufferReadiness(); //Check if we are read to write the framebuffer. If so, do so.
+	std::mutex frameLock; // required in order to read from the public flags of ThreadedVideoReader
+	std::vector<bool> readyState;
+	bool initialized=false;
+
+	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
+	int frameCount = 0;
+	std::vector<int> cameraFrameCounts;
 
 public:
-	int width, height;
+	Streamer(std::function<void(void)>);
+	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;
 
-	void setDrawTargets(std::vector<VisionTarget>* drawPoints);
+	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
+	void (*annotateFrame)(cv::Mat) = nullptr;
 	
+	// Initializes streamer, scanning for cameras and setting up a socket that listens for the client
 	void start();
 	
+	// Should be called when SIGCHLD is recieved
 	void handleCrash(pid_t pid);
 	
+	// Gets a video frame which is converted to the blue-green-red format usually used by opencv
 	cv::Mat getBGRFrame();
 
-	void run(std::function<void(void)> frameNotifier); // run thread
-	void launchFFmpeg(); // for loopback video
+	// visionFrameNotifier is called every new frame from the vision camera
+	std::function<void(void)> visionFrameNotifier; //visionFrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
+	// Runs the thread that grabs and forwards frames from the vision camera
+	void run(); 
 
 	bool lowExposure = false;
 	void setLowExposure(bool value);
+	cv::Mat frameBuffer;
 };
 extern int clientFd; 
