@@ -43,6 +43,13 @@ bool VideoReader::tryOpenReader() {
 		return false;
 	}
 
+	queryResolutions();
+	for(auto &i : resolutions){
+		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
+			std::cout << "Resolution: " << i.discrete.width << " : " << i.discrete.height << std::endl;
+		}
+	}
+
 	struct v4l2_format format;
 	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
@@ -205,7 +212,29 @@ bool VideoReader::grabFrame() {
 	hasFirstFrame = true;
 	return true;
 }
+/* Get and cache the list of acceptable resolution pair values for the used format. */
+void VideoReader::queryResolutions(){
+	v4l2_frmsizeenum capability;
+	capability.index=1;
+	capability.pixel_format=V4L2_PIX_FMT_YUYV;
+	while(ioctl(camfd,VIDIOC_ENUM_FRAMESIZES,&capability)==0){
+		if(capability.type==V4L2_FRMSIZE_TYPE_DISCRETE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_DISCRETE,.discrete=capability.discrete});
+		else{ if(capability.type==V4L2_FRMSIZE_TYPE_DISCRETE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_STEPWISE,.stepwise=capability.stepwise});
+		else{ std::cout << "Unknown type for vl42 resolution. Have fun figuring out this one." << std::endl;}}
+		capability.index++; //Increment the thing.
+	}
 
+}
+/* int VideoReader::setResolution(int width, int height)
+** This function attempts to set the resolution of the camera stream to the given values, 
+**  resetting the feed in the process.
+** It returns 0 upon success, 1 if given invalid resolution dimensions for the camera, 
+**  and 2 if some other error occurs.
+*/
+int VideoReader::setResolution(int width, int height){
+	
+	return -1; //Not implemented.
+}
 
 cv::Mat VideoReader::getMat() {
 	if (hasFirstFrame) return cv::Mat(height, width, CV_8UC2, currentBuffer);

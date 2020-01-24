@@ -11,6 +11,12 @@
 // Some helper classes to interface with the Video4Linux (V4L2) API
 
 
+//Magic struct.
+struct resolution {
+	int type;
+	v4l2_frmsize_discrete discrete; //Only one of these two is actually going to be initialized. FSCK unions.
+	v4l2_frmsize_stepwise stepwise;
+};
 
 // Reads video from a camera
 class VideoReader {
@@ -50,6 +56,10 @@ public:
 	void setExposure(int value) { setExposureVals(false, value); }
 	// Turns on auto-exposure.
 	void setAutoExposure() { setExposureVals(true, 50); }
+	int setResolution(int width, int height);
+
+	void queryResolutions();
+	std::vector<resolution> resolutions;
 
 	class NotInitializedException : public std::exception {};
 };
