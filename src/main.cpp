@@ -27,6 +27,7 @@
 #include "streamer.hpp"
 
 #include "DataComm.hpp"
+#include "ControlPacketReceiver.hpp"
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
@@ -46,6 +47,7 @@ void visionFrameNotifier(); //Declared later in namespace
 Streamer streamer(visionFrameNotifier);
 
 // recieves enable/disable signals from the RIO to conserve thermal capacity
+// Also allows control packets to be sent to modify camera values.
 // Also sets exposure when actively driving to target
 void ControlSocket() {
 	struct addrinfo hints;
@@ -276,8 +278,7 @@ int main(int argc, char** argv) {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
-	// Enables the v4l2loopback kernel module if it hasn't already
-	system("/home/pi/bin/run_setup_v4l2loopback");
+
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 	signal(SIGPIPE, SIG_IGN);
@@ -302,6 +303,8 @@ int main(int argc, char** argv) {
 	//std::thread visThread(&VisionThread);
 	std::thread controlSockThread(&ControlSocket);
 
+	ControlPacketReceiver test;
+	test.start();
 	// never returns
 	streamer.run();
 

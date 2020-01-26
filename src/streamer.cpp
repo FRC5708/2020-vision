@@ -289,7 +289,7 @@ void Streamer::dsListener() {
 		}
 		
 		char bitrate[16];
-		ssize_t len = read(clientFd, bitrate, sizeof(bitrate));
+		ssize_t len = read(clientFd, bitrate, sizeof(bitrate)-1);
 		bitrate[len] = '\0';
 		
 		const char message[] = "Launching remote GStreamer...\n";
