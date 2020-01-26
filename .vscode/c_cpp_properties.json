@@ -21,7 +21,9 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/../pi_include/usr/include/",
-                "${workspaceFolder}/../pi_include/usr/include/**"
+                "${workspaceFolder}/../pi_include/usr/include/**",
+                "${workspaceFolder}/../pi_include/opt/vc/include/",
+                "${workspaceFolder}/../pi_include/opt/vc/include/**"
             ],
             "compilerPath": "~/wpilib/2020/roborio/bin/arm-frc2020-linux-gnueabi-gcc",
             "cStandard": "c11",
