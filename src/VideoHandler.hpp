@@ -7,6 +7,7 @@
 
 #include <opencv2/core.hpp>
 #include <linux/videodev2.h>
+#include "jpeg-wrapper.hpp"
 
 // Some helper classes to interface with the Video4Linux (V4L2) API
 
@@ -22,6 +23,8 @@ protected:
 	struct v4l2_buffer bufferinfo; 
 	struct v4l2_requestbuffers bufrequest; // Not modified outside of openReader()
 
+	int recievedLen = 0;
+
 	bool hasFirstFrame = false;
 
 	void setExposureVals(bool isAuto, int exposure);
@@ -29,6 +32,8 @@ protected:
 	void openReader();
 	bool tryOpenReader();
 	void closeReader();
+
+	virtual unsigned int getPixFmt() { return V4L2_PIX_FMT_YUYV; }
 
 public:
 	// size of the video
@@ -40,7 +45,7 @@ public:
 
 	// Get the most-recently-grabbed frame in an opencv Mat.
 	// The data is not copied.
-	cv::Mat getMat();
+	virtual cv::Mat getMat();
 
 	// Grab the next frame from the camera. 
     bool grabFrame();
@@ -54,7 +59,6 @@ public:
 	class NotInitializedException : public std::exception {};
 };
 
-
 class ThreadedVideoReader : public VideoReader {
 public:
 	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
@@ -63,15 +67,29 @@ public:
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
-private:
+protected:
 	std::chrono::steady_clock timeout_clock;
 
 	void resetterMonitor();
+	virtual void mainLoop();
 	// Only reset the camera if it's been dead for over this amount of time.
 	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 
 	std::mutex resetLock;
 	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handles
 	
+};
+
+class MJpegVideoReader : public ThreadedVideoReader {
+
+protected:
+	virtual unsigned int getPixFmt() override { return V4L2_PIX_FMT_MJPEG; }
+	MJpegDecoder decoder;
+	cv::Mat decodedFrame;
+	void mainLoop() override;	
+
+public:
+	using ThreadedVideoReader::ThreadedVideoReader;
+	cv::Mat getMat() override;
 };
 
 

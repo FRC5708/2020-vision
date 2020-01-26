@@ -163,7 +163,7 @@ vector<string> getVideoDeviceWithString(string cmp) {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"920", "C525", "C615"
+	/*"920", */"C525"//, "C615"
 };
 
 void Streamer::start() {
@@ -224,7 +224,7 @@ void Streamer::start() {
 	cameraFrameCounts.resize(cameraDevs.size());
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
-		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
+		cameraReaders.push_back(std::make_unique<MJpegVideoReader>(
 			width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();

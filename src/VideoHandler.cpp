@@ -1,5 +1,6 @@
 #include "VideoHandler.hpp"
 
+
 #include <iostream>
 
 #include <unistd.h>
@@ -45,7 +46,7 @@ bool VideoReader::tryOpenReader() {
 
 	struct v4l2_format format;
 	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+	format.fmt.pix.pixelformat = getPixFmt();
 	format.fmt.pix.width = width;
 	format.fmt.pix.height = height;
 	format.fmt.pix.field = V4L2_FIELD_INTERLACED;
@@ -194,13 +195,20 @@ bool VideoReader::grabFrame() {
 
 	currentBuffer = buffers[bufferinfo.index];
 	//std::cout << "buffer index: " << bufferinfo.index << " addr: " << currentBuffer << std::endl;
-	assert((signed) bufferinfo.length == width*height*2);
+	recievedLen = bufferinfo.bytesused;
+	if (getPixFmt() != V4L2_PIX_FMT_MJPEG) assert((signed) recievedLen == width*height*2);
 
 	// put the old buffer back into the queue
 	if(hasFirstFrame && ioctl(camfd, VIDIOC_QBUF, &bufferinfo) < 0){
 		perror("VIDIOC_QBUF");
 		return false;
 	}
+
+	/*if (!hasFirstFrame) {
+		FILE* debugOutput = fopen("/home/pi/frame.jpeg", "w");
+		fwrite(currentBuffer, recievedLen, 1, debugOutput);
+		fclose(debugOutput);
+	}*/
 
 	hasFirstFrame = true;
 	return true;
@@ -255,16 +263,17 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 
 	mainLoopThread = std::thread([this]() {
 		openReader();
-		
 		resetTimeoutThread = std::thread(&ThreadedVideoReader::resetterMonitor,this); //Start monitoring thread.
-
-		while (true) {
-			if (grabFrame()) {
-				resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
-				this->newFrameCallback();
-			}
-		}
+		mainLoop();
 	});
+}
+void ThreadedVideoReader::mainLoop() {
+	while (true) {
+		if (grabFrame()) {
+			resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
+			newFrameCallback();
+		}
+	}
 }
 
 void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.
@@ -283,6 +292,24 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Because I'm a janky spinlock
 	}
+}
+
+void MJpegVideoReader::mainLoop() {
+	while (true) {
+		if (grabFrame()) {
+			// decode frame
+			decoder.addFrame(currentBuffer, recievedLen, [this](cv::Mat decodedFrame) {
+
+				this->decodedFrame = decodedFrame;
+				resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
+				newFrameCallback();
+			});
+		}
+	}
+}
+
+cv::Mat MJpegVideoReader::getMat() {
+	return decodedFrame;
 }
 
 
