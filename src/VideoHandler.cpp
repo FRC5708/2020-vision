@@ -219,21 +219,11 @@ void VideoReader::queryResolutions(){
 	capability.pixel_format=V4L2_PIX_FMT_YUYV;
 	while(ioctl(camfd,VIDIOC_ENUM_FRAMESIZES,&capability)==0){
 		if(capability.type==V4L2_FRMSIZE_TYPE_DISCRETE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_DISCRETE,.discrete=capability.discrete});
-		else{ if(capability.type==V4L2_FRMSIZE_TYPE_DISCRETE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_STEPWISE,.stepwise=capability.stepwise});
-		else{ std::cout << "Unknown type for vl42 resolution. Have fun figuring out this one." << std::endl;}}
+		/*else{ if(capability.type==V4L2_FRMSIZE_TYPE_STEPWISE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_STEPWISE,.stepwise=capability.stepwise});*/
+		else{ std::cout << "Non-discrete type for vl42 resolution. It's (currently) not worth our time to use this." << std::endl;}
 		capability.index++; //Increment the thing.
 	}
 
-}
-/* int VideoReader::setResolution(int width, int height)
-** This function attempts to set the resolution of the camera stream to the given values, 
-**  resetting the feed in the process.
-** It returns 0 upon success, 1 if given invalid resolution dimensions for the camera, 
-**  and 2 if some other error occurs.
-*/
-int VideoReader::setResolution(int width, int height){
-	
-	return -1; //Not implemented.
 }
 
 cv::Mat VideoReader::getMat() {
@@ -300,18 +290,41 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 	while (true) {
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
 			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
-			resetLock.lock();
-			
-           closeReader();
-		   sleep(4);
-		   openReader();
-
-		   last_update = timeout_clock.now();
-
-			resetLock.unlock();
+			reset();
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Because I'm a janky spinlock
 	}
+}
+void ThreadedVideoReader::reset(){
+	resetLock.lock();
+	
+	closeReader();
+	sleep(4);
+	openReader();
+
+	last_update = timeout_clock.now();
+
+	resetLock.unlock();
+}
+/* int ThreadedVideoReader::setResolution(int width, int height)
+** This function attempts to set the resolution of the camera stream to the given values, 
+**  resetting the feed in the process.
+** It returns 0 upon success, 1 if given invalid resolution dimensions for the camera, 
+**  and 2 if some other error occurs.
+** It is guaranteed to lock the camera until it is done.
+*/
+int ThreadedVideoReader::setResolution(unsigned int width,unsigned int height){
+	bool foundValidResolution=false;
+	for(auto& res : resolutions){
+		if(res.discrete.width==width && res.discrete.height==height){
+			foundValidResolution=true; 
+			break;
+		}
+	}
+	if(!foundValidResolution) return 1; //Given resolution is invalid.
+	this->width=width; this->height=height;
+	reset();
+	return 0; //Not implemented.
 }
 
 

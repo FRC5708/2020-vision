@@ -56,10 +56,9 @@ public:
 	void setExposure(int value) { setExposureVals(false, value); }
 	// Turns on auto-exposure.
 	void setAutoExposure() { setExposureVals(true, 50); }
-	int setResolution(int width, int height);
 
 	void queryResolutions();
-	std::vector<resolution> resolutions;
+	std::vector<resolution> resolutions; //Front is also discrete, back stepwise! This is not obvious.
 
 	class NotInitializedException : public std::exception {};
 };
@@ -73,10 +72,12 @@ public:
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
+	int setResolution(unsigned int width, unsigned int height);
+	void reset(); //Actually resets the camera. 
 private:
 	std::chrono::steady_clock timeout_clock;
 
-	void resetterMonitor();
+	void resetterMonitor(); //Monitors to see if camera should be reset, calls reset() if it should be so.
 	// Only reset the camera if it's been dead for over this amount of time.
 	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 
 	std::mutex resetLock;

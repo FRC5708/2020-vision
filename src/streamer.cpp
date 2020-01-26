@@ -401,7 +401,7 @@ void Streamer::pushFrame(int i) {
 		if (elapsed >= std::chrono::seconds(1)) {
 			cout << "In the past " << std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count()
 			<< " seconds, " << frameCount << " pushed frames: ";
-			for (int i = 0; i < cameraFrameCounts.size(); ++i) {
+			for (unsigned int i = 0; i < cameraFrameCounts.size(); ++i) {
 				cout << cameraFrameCounts[i] << " from cam " << i;
 				if (i != cameraFrameCounts.size() - 1) cout << ", ";
 				cameraFrameCounts[i] = 0;
