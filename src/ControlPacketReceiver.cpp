@@ -56,6 +56,7 @@ int ControlPacketReceiver::setupSocket(){
 void ControlPacketReceiver::receivePackets(){
     std::cout << "@ReceivePackets thread started" << std::endl;
     while (true) {
+		std::cout << "Attempting to establish connection to control packet sender..." << std::endl;
 		struct sockaddr_in6 clientAddr;
 		socklen_t clientAddrLen = sizeof(clientAddr);
 		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
@@ -63,22 +64,30 @@ void ControlPacketReceiver::receivePackets(){
 			perror("accept");
 			continue;
 		}
+		std::cout << "Connection to controller established." << std::endl;
 
 		while(true){
 			char controlMessage[65536];
-			ssize_t len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
-			if(len<0) break; //Our connection has been broken.
+			int len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
+			if(len<=0){
+				std::cout << "Connection to controller broken." << std::endl;
+				break; //Our connection has been broken.
+			} 
+			std::cout << "Received control message " << controlMessage << std::endl;
 			controlMessage[len] = '\0'; //Nullchar-delimit our message.
 			const char* status = parsePacket(controlMessage);
+			std::cout << "Control Message status: " << status << std::endl;
 			int retval=write(clientFd,status,strlen(status));
-			if(retval<0) break;
+			if(retval<0){
+				std::cout << "Connection to controller broken." << std::endl;
+				break;
+			}
 		}
     }
 
 }
 
 const char* ControlPacketReceiver::parsePacket(char* controlMessage){
-    std::cout << controlMessage << std::endl;
 	const char* message=controlMessage;
 	return message;
 }
