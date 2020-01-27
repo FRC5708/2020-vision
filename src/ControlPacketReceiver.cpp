@@ -16,6 +16,14 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <functional>
+
+
+ControlPacketReceiver::ControlPacketReceiver(std::function<const char*(char*)> parsePacket,short port){
+	this->port=port;
+	this->parsePacket=parsePacket;
+	start();
+}
 
 void ControlPacketReceiver::start(){
     int retval=setupSocket();
@@ -23,6 +31,7 @@ void ControlPacketReceiver::start(){
     receiverThread=std::thread(&ControlPacketReceiver::receivePackets,this);
 }
 int ControlPacketReceiver::setupSocket(){
+	//Sets up the network socket for receiving control messages.
     servFd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (servFd < 0) {
 		perror("socket");
@@ -40,7 +49,7 @@ int ControlPacketReceiver::setupSocket(){
 	
 	servAddr.sin6_family = AF_INET6;
 	servAddr.sin6_addr = in6addr_any;
-	servAddr.sin6_port = htons(58000); //Port that the control stream uses
+	servAddr.sin6_port = htons(port); //Port that the control stream uses
 
 	if (bind(servFd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
 		perror("bind");
@@ -65,7 +74,8 @@ void ControlPacketReceiver::receivePackets(){
 			continue;
 		}
 		std::cout << "Connection to controller established." << std::endl;
-
+		const char* connect_msg="Connection established.\n\0";
+		write(clientFd,connect_msg,strlen(connect_msg));
 		while(true){
 			char controlMessage[65536];
 			int len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
@@ -86,11 +96,3 @@ void ControlPacketReceiver::receivePackets(){
     }
 
 }
-
-const char* ControlPacketReceiver::parsePacket(char* controlMessage){
-	const char* message=controlMessage;
-	return message;
-}
-
-
-    

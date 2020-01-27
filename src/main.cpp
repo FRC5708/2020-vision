@@ -302,9 +302,10 @@ int main(int argc, char** argv) {
 
 	//std::thread visThread(&VisionThread);
 	std::thread controlSockThread(&ControlSocket);
-
-	ControlPacketReceiver test;
-	test.start();
+	std::function<const char*(char*)> simplecallback = [](char* message){
+		return message;
+	};
+	ControlPacketReceiver test = ControlPacketReceiver(simplecallback,58000);
 	// never returns
 	streamer.run();
 
