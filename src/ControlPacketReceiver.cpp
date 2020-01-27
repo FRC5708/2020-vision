@@ -64,16 +64,23 @@ void ControlPacketReceiver::receivePackets(){
 			continue;
 		}
 
-        char controlMessage[65536];
-        ssize_t len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
-        controlMessage[len] = '\0'; //Nullchar-delimit our message.
-        parsePacket(controlMessage);
+		while(true){
+			char controlMessage[65536];
+			ssize_t len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
+			if(len<0) break; //Our connection has been broken.
+			controlMessage[len] = '\0'; //Nullchar-delimit our message.
+			const char* status = parsePacket(controlMessage);
+			int retval=write(clientFd,status,strlen(status));
+			if(retval<0) break;
+		}
     }
 
 }
 
-void ControlPacketReceiver::parsePacket(char* controlMessage){
+const char* ControlPacketReceiver::parsePacket(char* controlMessage){
     std::cout << controlMessage << std::endl;
+	const char* message=controlMessage;
+	return message;
 }
 
 

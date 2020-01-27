@@ -15,5 +15,5 @@ class ControlPacketReceiver{
     void start();
     int setupSocket();
     void receivePackets();
-    void parsePacket(char* controlMessage);
+    const char* parsePacket(char* controlMessage);
 };
