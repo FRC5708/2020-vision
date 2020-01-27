@@ -19,15 +19,15 @@
 #include <functional>
 
 
-ControlPacketReceiver::ControlPacketReceiver(std::function<const char*(char*)> parsePacket,short port){
+ControlPacketReceiver::ControlPacketReceiver(std::function<const char*(char*)> parsePacketCallback,short port){
 	this->port=port;
-	this->parsePacket=parsePacket;
+	this->parsePacketCallback=parsePacketCallback;
 	start();
 }
 
 void ControlPacketReceiver::start(){
     int retval=setupSocket();
-    std::cout << "@setupSocket(): " << retval << std::endl;
+    std::cout << "@setupSocket: " << retval << std::endl;
     receiverThread=std::thread(&ControlPacketReceiver::receivePackets,this);
 }
 int ControlPacketReceiver::setupSocket(){
@@ -64,7 +64,7 @@ int ControlPacketReceiver::setupSocket(){
 
 void ControlPacketReceiver::receivePackets(){
     std::cout << "@ReceivePackets thread started" << std::endl;
-    while (true) {
+    while (!destroyReceiver) {
 		std::cout << "Attempting to establish connection to control packet sender..." << std::endl;
 		struct sockaddr_in6 clientAddr;
 		socklen_t clientAddrLen = sizeof(clientAddr);
@@ -85,7 +85,7 @@ void ControlPacketReceiver::receivePackets(){
 			} 
 			std::cout << "Received control message " << controlMessage << std::endl;
 			controlMessage[len] = '\0'; //Nullchar-delimit our message.
-			const char* status = parsePacket(controlMessage);
+			const char* status = parsePacketCallback(controlMessage); //Send the control packet to our external packet-parsing function.
 			std::cout << "Control Message status: " << status << std::endl;
 			int retval=write(clientFd,status,strlen(status));
 			if(retval<0){
@@ -95,4 +95,12 @@ void ControlPacketReceiver::receivePackets(){
 		}
     }
 
+}
+
+ControlPacketReceiver::~ControlPacketReceiver(){
+	std::cout << "Destroying control packet receiver..." << std::endl;
+	destroyReceiver=true;
+	close(servFd);
+	receiverThread.join();
+	std::cout << "Control Packet Receiver destroyed." << std::endl;
 }
