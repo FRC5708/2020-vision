@@ -7,7 +7,7 @@
 
 #include <opencv2/core.hpp>
 #include <linux/videodev2.h>
-#include "jpeg-wrapper.hpp"
+#include "jpeg/jpeg-wrapper.hpp"
 
 // Some helper classes to interface with the Video4Linux (V4L2) API
 

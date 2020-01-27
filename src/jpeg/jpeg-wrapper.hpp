@@ -21,9 +21,11 @@ public:
 	
 	MJpegDecoder();
 
-	void* volatile encodedBuf = nullptr;
+	//void* volatile encodedBuf = nullptr;
+	std::vector<uint8_t> encodedBuf;
 	std::function<void(cv::Mat)> currentCallback;
-	volatile size_t bufLen = 0, bufPos = 0;
+	//volatile size_t bufLen = 0;
+	volatile size_t bufPos = 0;
 
 	std::mutex waitMutex;
 	std::condition_variable condVar;

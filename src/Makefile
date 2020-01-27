@@ -11,10 +11,10 @@ ODIR=obj
 %.o: %.cpp %.hpp
 	g++ -c -o $@ $< $(CXXFLAGS)
 
-jpeg.o: jpeg.c
+jpeg/jpeg.o: jpeg/jpeg.c
 	gcc -c -o $@ $< $(CFLAGS)
 
-OBJS=main.o RedContourGrip.o vision.o streamer.o DataComm.o VideoHandler.o jpeg.o jpeg-wrapper.o
+OBJS=main.o RedContourGrip.o vision.o streamer.o DataComm.o VideoHandler.o jpeg/jpeg.o jpeg/jpeg-wrapper.o jpeg/jpegfixer.o
 
 build: $(OBJS)
 	g++ -Wno-psabi $(COMMON_FLAGS) -o ../5708-vision $(OBJS) -lm -ldl `pkg-config --libs opencv4 mmal` -pthread

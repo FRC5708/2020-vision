@@ -1,4 +1,5 @@
 #include "jpeg-wrapper.hpp"
+#include "jpegfixer.hpp"
 
 #include <iostream>
 #include <thread>
@@ -10,15 +11,15 @@ size_t wrapper_get_data(void* buf, size_t outputSize, userptr_t* user) {
 	MJpegDecoder* wrapper = (MJpegDecoder *) user;
 	
 	std::unique_lock<std::mutex> ul(wrapper->waitMutex);
-	while (wrapper->bufLen == wrapper->bufPos) {
+	while (wrapper->bufPos >= wrapper->encodedBuf.size()) {
 		//std::cerr << "waiting for new frame..." << std::endl;
 		wrapper->condVar.wait(ul);
 	}
 
-	assert(wrapper->bufLen >= wrapper->bufPos);
-	size_t copyLen = std::min(wrapper->bufLen - wrapper->bufPos, outputSize);
+	assert(wrapper->encodedBuf.size() >= wrapper->bufPos);
+	size_t copyLen = std::min(wrapper->encodedBuf.size() - wrapper->bufPos, outputSize);
 	assert(copyLen > 0);
-	memcpy(buf, wrapper->encodedBuf, copyLen);
+	memcpy(buf, wrapper->encodedBuf.data(), copyLen);
 	wrapper->bufPos += copyLen;
 
 	//std::cerr << "sending " << copyLen << " bytes to decoder. Input len:" << wrapper->bufLen << " Output len:" << outputSize << std::endl;
@@ -36,8 +37,16 @@ void MJpegDecoder::addFrame(void* buf, size_t len, std::function<void(cv::Mat)> 
 
 	std::unique_lock<std::mutex> ul(waitMutex);
 
-	encodedBuf = buf; 
-	bufLen = len;
+	encodedBuf = fixJpeg(buf, len);
+
+	/*FILE* debugOutput = fopen("/home/pi/frame.jpeg", "w");
+	std::cerr << "writing to file " << encodedBuf.size() << " bytes and exiting" << std::endl;
+	fwrite(encodedBuf.data(), encodedBuf.size(), 1, debugOutput);
+	fclose(debugOutput);
+	exit(0);*/
+
+	//encodedBuf = buf; 
+	//bufLen = len;
 	bufPos = 0;
 	currentCallback = callback;
 

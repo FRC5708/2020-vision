@@ -263,7 +263,7 @@ void decode_jpeg_video(userptr_t* userptr, size_t (*get_data)(void* buf, size_t 
    /* Set format of video decoder input port */
    MMAL_ES_FORMAT_T *format_in = decoder->input[0]->format;
    format_in->type = MMAL_ES_TYPE_VIDEO;
-   format_in->encoding = MMAL_ENCODING_MJPEG;
+   format_in->encoding = MMAL_ENCODING_JPEG;
    format_in->es->video.width = 0;
    format_in->es->video.height = 0;
    //format_in->es->video.width = 800;
