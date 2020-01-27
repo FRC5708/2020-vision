@@ -163,7 +163,7 @@ vector<string> getVideoDeviceWithString(string cmp) {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	/*"920", */"C525"//, "C615"
+	"920", //"C525", "C615"
 };
 
 void Streamer::start() {

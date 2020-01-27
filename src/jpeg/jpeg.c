@@ -81,7 +81,7 @@ do { \
    ((cond) ? warn(__FILE__, __LINE__, __VA_ARGS__) : 0)
 #define ERRSTR strerror(errno)
 #define CHECK_STATUS(status, ...) WARN_ON(status != MMAL_SUCCESS, __VA_ARGS__); \
-   if (status != MMAL_SUCCESS) goto error;
+   if (status != MMAL_SUCCESS){ fprintf(stderr, "Error: %i\n", status); goto error; }
 
 //static FILE *source_file;
 
@@ -268,19 +268,25 @@ void decode_jpeg_video(userptr_t* userptr, size_t (*get_data)(void* buf, size_t 
    format_in->es->video.height = 0;
    //format_in->es->video.width = 800;
    //format_in->es->video.height = 448;
+   //format_in->es->video.crop = (MMAL_RECT_T) { 0, 0, 800, 448 };
+
    format_in->es->video.frame_rate.num = 0;
    format_in->es->video.frame_rate.den = 1;
    format_in->es->video.par.num = 1;
    format_in->es->video.par.den = 1;
 
    status = mmal_port_format_commit(decoder->input[0]);
-   CHECK_STATUS(status, "failed to commit format\n");
+
+   //fprintf(stderr, "committing input format: ");
+   //log_format(decoder->input[0]->format, decoder->input[0]);
+   CHECK_STATUS(status, "failed to commit input format\n");
 
    MMAL_ES_FORMAT_T *format_out = decoder->output[0]->format;
    format_out->encoding = MMAL_ENCODING_I420;
+   //format_out->encoding = MMAL_ENCODING_I422;
 
    status = mmal_port_format_commit(decoder->output[0]);
-   CHECK_STATUS(status, "failed to commit format\n");
+   CHECK_STATUS(status, "failed to commit output format\n");
 
    /* Display the output port format */
    fprintf(stderr, "%s\n", decoder->output[0]->name);
@@ -371,6 +377,11 @@ void decode_jpeg_video(userptr_t* userptr, size_t (*get_data)(void* buf, size_t 
          in_count++;
          fprintf(stderr, "Input buffer %p to port %s. in_count %u\n", buffer, decoder->input[0]->name, in_count);
       }
+
+      //fprintf(stderr, "input port format: ");
+      //log_format(decoder->input[0]->format, decoder->input[0]);
+      //fprintf(stderr, "output port format: ");
+      //log_format(decoder->output[0]->format, decoder->output[0]);
 
       /* Get our output frames */
       while ((buffer = mmal_queue_get(context.queue)) != NULL)

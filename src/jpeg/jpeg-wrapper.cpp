@@ -37,7 +37,9 @@ void MJpegDecoder::addFrame(void* buf, size_t len, std::function<void(cv::Mat)> 
 
 	std::unique_lock<std::mutex> ul(waitMutex);
 
-	encodedBuf = fixJpeg(buf, len);
+	//encodedBuf = fixJpeg(buf, len);
+	encodedBuf.clear();
+	encodedBuf.insert(encodedBuf.end(), (uint8_t*) buf, ((uint8_t*) buf)+len);
 
 	/*FILE* debugOutput = fopen("/home/pi/frame.jpeg", "w");
 	std::cerr << "writing to file " << encodedBuf.size() << " bytes and exiting" << std::endl;
