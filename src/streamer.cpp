@@ -419,6 +419,51 @@ void Streamer::pushFrame(int i) {
 	frameLock.unlock();
 }
 
+const char * Streamer::parseControlMessage(char * message){
+	std::cout << "@parseControlMessage: " << message <<  std::endl;
+	/*Control message syntax: Camerano1,[camerano2,...]:CONTROL MESSAGE
+	**Returned status syntax: 
+	**	Camerano1:RETNO:STATUS MESSAGE
+	**  Camerano2:RETNO:STATUS MESSAGE
+	**  ...\0
+	**If the original control message is completely unparseable, the return status is
+	**  UNPARSABLE MESSAGE
+	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
+	*/
+	std::stringstream status;
+
+	string commandMessage=string(message);
+	unsigned int indexOfDelimiter=commandMessage.find(':');
+	if(indexOfDelimiter==string::npos){
+		//There just isn't a : in there.
+		status << "UNPARSABLE MESSAGE (No comma-seperator)";
+		return status.str().c_str(); //Delightful.
+	}
+	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
+	string command=commandMessage.substr(indexOfDelimiter+1,string::npos);
+	command=command.substr(0,command.length()-1); //Chop off the null character. We don't want that floating around.
+	std::string buffer;
+	std::vector<string> cameras;
+	while(getline(cameraSegment,buffer,',')){
+		cameras.push_back(buffer);
+	}
+	if(cameras.size()==0){
+		//We didn't actually get any camera numbers.
+		status << "UNPARSABLE MESSAGE (No cameras specified)";
+		return status.str().c_str(); //Delightful
+	}
+	for(string &i : cameras){
+		const char * return_status=controlMessage(i,command);
+		status << i << ":" << return_status << std::endl;
+	}
+	return status.str().c_str(); //Delightful.
+
+}
+const char * Streamer::controlMessage(string camera, string command){
+	std::stringstream status;
+	status << camera << ":" << "Command \"" << command << "\" not implemented yet." << std::endl;
+	return status.str().c_str();
+}
 void Streamer::run() {
 	// defunct; doesn't do anything anymore
 	while (true) sleep(INT_MAX);

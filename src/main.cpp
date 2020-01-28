@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
 	std::function<const char*(char*)> simplecallback = [](char* message){
 		return message;
 	};
-	ControlPacketReceiver test = ControlPacketReceiver(simplecallback,58000);
+	ControlPacketReceiver test = ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
 	// never returns
 	streamer.run();
 

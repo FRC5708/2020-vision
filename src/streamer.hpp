@@ -10,6 +10,7 @@
 #include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
+#include <string>
 
 // Starts and manages gStreamer processes
 // Also intercepts the video stream from one camera to feed into vision processing
@@ -79,5 +80,7 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
+	const char * parseControlMessage(char * commandMessage); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
+	const char * controlMessage(std::string camera, std::string command);
 };
 extern int clientFd; 
