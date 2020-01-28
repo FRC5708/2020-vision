@@ -385,14 +385,40 @@ void Streamer::setLowExposure(bool value) {
 	}
 }
 
+
 bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
-	
-	for(unsigned int i=0;i<cameraDevs.size();i++){
-		// if there is no new frame from the camera, but the camera is not dead, return false
-		if(!readyState[i] && time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
-			return false;
+
+
+	double bestFrameTime = INFINITY;
+	double frameTimes[cameraDevs.size()];
+
+	for(unsigned int i=0;i<cameraDevs.size();i++) { 
+		frameTimes[i] = cameraReaders[i]->getMeanFrameInterval();
+		if (frameTimes[i] < bestFrameTime) {
+			bestFrameTime = frameTimes[i];
 		}
+	}
+	
+	// These are the cameras we care if are ready or not.
+	vector<bool> synchroCameras(cameraDevs.size(), false);
+	for(unsigned int i=0;i<cameraDevs.size();i++) {
+		synchroCameras[i] = 
+		frameTimes[i] / bestFrameTime > 0.85 // If the camera is fast
+		 // and it's not dead
+		 && time - cameraReaders[i]->last_update < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
+		 
+	}
+	// If there are no synchro cameras (unlikely, but possible if framerates are changing) disregard deadness
+	bool hasSynchro = false;
+	for(unsigned int i=0;i<cameraDevs.size();i++) hasSynchro |= synchroCameras[i];
+	if (!hasSynchro) for(unsigned int i=0;i<cameraDevs.size();i++) {
+		synchroCameras[i] = frameTimes[i] / bestFrameTime > 0.85;
+	}
+	
+	for(unsigned int i=0;i<cameraDevs.size();i++) {
+		// If we care about the camera, but it's not ready.
+		if (synchroCameras[i] && !readyState[i]) return false;
 	}
 	return true;
 }
@@ -438,6 +464,7 @@ void Streamer::pushFrame(int i) {
 		frameLock.unlock();
 		return;
 	}
+
 	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);
 		

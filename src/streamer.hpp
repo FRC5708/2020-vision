@@ -46,7 +46,9 @@ class Streamer {
 
 	//void Streamer::gotCameraFrame();
 	void pushFrame(int i);
-	bool checkFramebufferReadiness(); //Check if we are read to write the framebuffer. If so, do so.
+	
+	// Checks if we are read to write the framebuffer. It first creates a list of "synchronization cameras", which are running at the highest framerate of all the cameras (cameras sometimes reduce their framerate in order to increase exposure times) and are not "dead". A camera is considered "dead" if it's running significantly below 15 fps or a frame has not been recieved since 1.5*<average frame interval> ago. If a frame has been recieved from all of them, return true.
+	bool checkFramebufferReadiness(); 
 	std::mutex frameLock; // required in order to read from the public flags of ThreadedVideoReader
 	std::vector<bool> readyState;
 	bool initialized=false;
@@ -54,6 +56,7 @@ class Streamer {
 	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
 	int frameCount = 0;
 	std::vector<int> cameraFrameCounts;
+
 
 public:
 	Streamer(std::function<void(void)>);
