@@ -233,7 +233,7 @@ void drawTargets(cv::Mat drawOn) {
 	std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
 	cv::line(drawOn, 
 	{ drawOn.cols/2, drawOn.rows/2 }, 
-	{ drawOn.cols/2 * (1 - sin(angle)), drawOn.rows/2 * (1 - cos(angle)) },
+	{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
 	 { 0, 0 });
 }
 void visionFrameNotifier(){
