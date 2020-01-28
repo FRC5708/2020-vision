@@ -24,7 +24,7 @@ class Streamer {
 	std::vector<GstInstance> gstInstances;
 	
 	volatile bool handlingLaunchRequest = false;
-	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::vector<std::string> files);
+	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
 
 	std::vector<std::string> cameraDevs;
 

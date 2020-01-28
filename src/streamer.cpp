@@ -58,70 +58,17 @@ Streamer::Streamer(std::function<void(void)> callback){
 	visionFrameNotifier=callback;
 }
 
-void addSrc(std::stringstream& cmd, const string file, int width, int height) {
-	cmd << " v4l2src device=" << file << 
-	" ! video/x-raw,width=" << width << ",height=" << height
-	 << ",framerate=30/1 ! videoconvert "; // might need queue at the end
-}
-
-void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, vector<string> files) {
+void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
-	assert(files.size() > 0);
-
+	
 	// Codec is specific to the raspberry pi's gpu
 	string codec = "omxh264enc";
-	string gstreamCommand = "gst-launch-1.0";	
-
+	string gstreamCommand = "gst-launch-1.0";
+	
 	std::stringstream command;
-
-	command << gstreamCommand;
-	addSrc(command, files[0], width, height);
-
-	//int outputWidth, outputHeight;
-
-	// https://www.technomancy.org/gstreamer/playing-two-videos-side-by-side/
-
-	int outputWidth, outputHeight;
-
-	if (files.size() == 1) {
-		outputWidth = width; outputHeight = height;
-	}
-	else if (files.size() == 2) {
-		outputWidth = width*2; outputHeight = height;
-
-		command << " ! videobox border-alpha=0 right=-" << width << " ! videomixer name=mix ";
-	}
-	else if (files.size() == 3 || files.size() == 4) {
-		outputWidth = width*2; outputHeight = height*2;
-		command << " ! videobox border-alpha=0 right=-" << width << " bottom=-" << height
-		 << " ! videomixer name=mix ";
-	}
-	else {
-		std::cerr << "too many cameras!" << std::endl;
-		return;
-	}
-
-	command << "! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
-	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
-	<< ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
+	command << gstreamCommand << " v4l2src device=" << file << " ! videoscale ! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
+	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
-
-	if (files.size() == 2) {
-		addSrc(command, files[1], width, height);
-		command << " ! videobox border-alpha=0 left=-" << width << " ! mix. ";
-	}
-	else if (files.size() == 3 || files.size() == 4) {
-		addSrc(command, files[1], width, height);
-		command << " ! videobox border-alpha=0 left=-" << width << " bottom=-" << height << " ! mix. ";
-		
-		addSrc(command, files[2], width, height);
-		command << " ! videobox border-alpha=0 right=-" << width << " top=-" << height << " ! mix. ";
-
-		if (files.size() == 4) {
-			addSrc(command, files[2], width, height);
-			command << " ! videobox border-alpha=0 left=-" << width << " top=-" << height << " ! mix. ";
-		}
-	}
 
 	string strCommand = command.str();
 	
@@ -309,7 +256,7 @@ void Streamer::dsListener() {
 
 		//vector<string> outputVideoDevs = cameraDevs;
 		//outputVideoDevs[0] = loopbackDev;
-		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", {loopbackDev});
+		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
 
 		// It was planned to draw an overlay over the video feed in the driver station.
 		// This sends the overlay data.
