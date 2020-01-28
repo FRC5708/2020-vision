@@ -419,8 +419,7 @@ void Streamer::pushFrame(int i) {
 	frameLock.unlock();
 }
 
-const char * Streamer::parseControlMessage(char * message){
-	std::cout << "@parseControlMessage: " << message <<  std::endl;
+string Streamer::parseControlMessage(char * message){
 	/*Control message syntax: Camerano1,[camerano2,...]:CONTROL MESSAGE
 	**Returned status syntax: 
 	**	Camerano1:RETNO:STATUS MESSAGE
@@ -430,13 +429,13 @@ const char * Streamer::parseControlMessage(char * message){
 	**  UNPARSABLE MESSAGE
 	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
 	*/
-	std::stringstream status;
+	std::stringstream status=std::stringstream("");
 
 	string commandMessage=string(message);
 	unsigned int indexOfDelimiter=commandMessage.find(':');
 	if(indexOfDelimiter==string::npos){
 		//There just isn't a : in there.
-		status << "UNPARSABLE MESSAGE (No comma-seperator)";
+		status << "UNPARSABLE MESSAGE (No colon-seperator)";
 		return status.str().c_str(); //Delightful.
 	}
 	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
@@ -449,20 +448,20 @@ const char * Streamer::parseControlMessage(char * message){
 	}
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
-		status << "UNPARSABLE MESSAGE (No cameras specified)";
+		status << "UNPARSABLE MESSAGE (No cameras specified)\n";
 		return status.str().c_str(); //Delightful
 	}
 	for(string &i : cameras){
-		const char * return_status=controlMessage(i,command);
-		status << i << ":" << return_status << std::endl;
+		string return_status=controlMessage(i,command);
+		status << i << ":" << return_status << "\n";
 	}
-	return status.str().c_str(); //Delightful.
+	return status.str(); //Delightful.
 
 }
-const char * Streamer::controlMessage(string camera, string command){
-	std::stringstream status;
-	status << camera << ":" << "Command \"" << command << "\" not implemented yet." << std::endl;
-	return status.str().c_str();
+string Streamer::controlMessage(string camera, string command){
+	std::stringstream status=std::stringstream("");
+	status << "Command \"" << command << "\" not implemented yet.";
+	return status.str();
 }
 void Streamer::run() {
 	// defunct; doesn't do anything anymore

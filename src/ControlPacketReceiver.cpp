@@ -17,9 +17,10 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <functional>
+#include <string>
 
 
-ControlPacketReceiver::ControlPacketReceiver(std::function<const char*(char*)> parsePacketCallback,short port){
+ControlPacketReceiver::ControlPacketReceiver(std::function<std::string(char*)> parsePacketCallback,short port){
 	this->port=port;
 	this->parsePacketCallback=parsePacketCallback;
 	start();
@@ -85,9 +86,10 @@ void ControlPacketReceiver::receivePackets(){
 			} 
 			std::cout << "Received control message " << controlMessage << std::endl;
 			controlMessage[len] = '\0'; //Nullchar-delimit our message.
-			const char* status = parsePacketCallback(controlMessage); //Send the control packet to our external packet-parsing function.
-			std::cout << "Control Message status: " << status << std::endl;
-			int retval=write(clientFd,status,strlen(status));
+			std::string status = parsePacketCallback(controlMessage); //Send the control packet to our external packet-parsing function.
+			const char * status_c_str = status.c_str();
+			std::cout << "Control Message status: \n" << status_c_str << std::endl;
+			int retval=write(clientFd,status_c_str,strlen(status_c_str));
 			if(retval<0){
 				std::cout << "Connection to controller broken." << std::endl;
 				break;
