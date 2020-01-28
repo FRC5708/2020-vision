@@ -28,7 +28,8 @@ class Streamer {
 	pid_t ffmpegPID = 0;
 	int servFd;
 
-	std::vector<VisionTarget> drawTargets;
+	//std::vector<VisionTarget> drawTargets;
+	std::vector<cv::Point> drawTargets;
 	DataComm* computer_udp = nullptr;
 
 	VideoWriter videoWriter;
@@ -39,7 +40,8 @@ class Streamer {
 public:
 	int width, height;
 
-	void setDrawTargets(std::vector<VisionTarget>* drawPoints);
+	//void setDrawTargets(std::vector<VisionTarget>* drawPoints);
+	void setDrawTargets(std::vector<cv::Point>* drawPoints);
 	
 	void start();
 	

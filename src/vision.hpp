@@ -31,6 +31,7 @@ struct VisionDrawPoints {
 
 // Draw an overlay representing the vision targets
 void drawVisionPoints(VisionDrawPoints& toDraw, cv::Mat& image);
+void DrawPoints(std::vector<cv::Point>& toDraw, cv::Mat& drawOn);
 
 struct VisionTarget {
 	VisionData calcs;
@@ -39,7 +40,8 @@ struct VisionTarget {
 };
 
 // The main vision processing function, which processes a single frame.
-std::vector<VisionTarget> doVision(cv::Mat image);
+//std::vector<VisionTarget> doVision(cv::Mat image);
+std::vector<cv::Point> doVision(cv::Mat image);
 
 extern bool isImageTesting;
 extern bool verboseMode;

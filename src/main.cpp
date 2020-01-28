@@ -34,7 +34,8 @@ namespace vision5708Main {
 	// when false, drastically slows down vision processing
 	volatile bool visionEnabled = false;
 	
-	std::vector<VisionTarget> lastResults;
+	//std::vector<VisionTarget> lastResults;
+    std::vector<cv::Point> lastResults;
 
 	std::chrono::steady_clock clock;
 	auto currentFrameTime = clock.now();
@@ -116,7 +117,7 @@ namespace vision5708Main {
 			lastResults = doVision(streamer.getBGRFrame());
 
 			streamer.setDrawTargets(&lastResults);
-			
+		    /*	
 			std::vector<VisionData> calcs;
 			calcs.reserve(lastResults.size());
 			for (auto i : lastResults) {
@@ -124,7 +125,7 @@ namespace vision5708Main {
 			} 
 			
 			rioComm.sendData(calcs, lastFrameTime);
-			
+			*/
 			// If no new frame has come from the camera, wait.
 			if (lastFrameTime == currentFrameTime) {
 				std::unique_lock<std::mutex> uniqueWaitMutex(waitMutex);
@@ -178,7 +179,8 @@ namespace vision5708Main {
 	void changeCalibResolution(int width, int height) {
 		assert(calib::cameraMatrix.type() == CV_64F);
 		if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.01) {
-			cerr << "wrong aspect ratio recieved from camera" << endl;
+			cout << calib::width << " " << calib::height << endl;
+            cerr << "wrong aspect ratio recieved from camera" << endl;
 			exit(1);
 		}
 		calib::cameraMatrix.at<double>(0, 0) *= (width / (double) calib::width);
@@ -197,14 +199,14 @@ namespace vision5708Main {
 		cout << "image size: " << image.cols << 'x' << image.rows << endl;
 		changeCalibResolution(image.cols, image.rows);
 
-		std::vector<VisionTarget> te = doVision(image);
+		//std::vector<VisionTarget> te = doVision(image);
 		cout << "Testing Path: " << path << std::endl;
-		for(auto &i:te){
-			auto calc=i.calcs;
+		/*for(auto &i:te){
+			auto calc=icalcs;
 			cout << "Portland: " << calc.isPort << " Distance: " << calc.distance << " tape: " << calc.tapeAngle << " robot: " << calc.robotAngle << std::endl;
 			cout << "L: " << i.left.x << ":" << i.left.y << " " << i.left.width << "," << i.left.height
 			<< " R: " << i.right.x << ":" << i.right.y << " " << i.right.width << "," << i.right.height << std::endl;
-		}
+		}*/
 	}
 	bool fileIsImage(char* file) {
 		string path(file);
@@ -221,8 +223,9 @@ namespace vision5708Main {
 		
 		
 		if (argc >= 3) {
-			readCalibParams(argv[1]);
-			doImageTesting(argv[2]);
+			//readCalibParams(argv[1]);
+			setDefaultCalibParams();
+            doImageTesting(argv[2]);
 			return 0;
 		}
 		else if (argc == 2) {

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ -z "$BITRATE" ]; then BITRATE=1000000; fi
+if [ -z "$BITRATE" ]; then BITRATE=100000; fi
 
 if [ -z "$GST_COMMAND" ]; then 
     if [ -f /proc/version ] && grep -q "Microsoft" /proc/version; then

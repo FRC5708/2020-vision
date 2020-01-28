@@ -231,7 +231,12 @@ void Streamer::start() {
 	
 }
 
-void Streamer::setDrawTargets(std::vector<VisionTarget>* drawTargets) {
+/*void Streamer::setDrawTargets(std::vector<VisionTarget>* drawTargets) {
+	this->drawTargets = *drawTargets;
+	//if (computer_udp) computer_udp->sendDraw(&(*drawTargets)[0].drawPoints);
+}*/
+
+void Streamer::setDrawTargets(std::vector<cv::Point>* drawTargets) {
 	this->drawTargets = *drawTargets;
 	//if (computer_udp) computer_udp->sendDraw(&(*drawTargets)[0].drawPoints);
 }
@@ -268,9 +273,10 @@ void Streamer::run(std::function<void(void)> frameNotifier) {
 
 		// Draw an overlay on the frame before handing it off to gStreamer
 		cv::Mat drawnOn = camera.getMat().clone();
-		for (auto i = drawTargets.begin(); i < drawTargets.end(); ++i) {
+		/*for (auto i = drawTargets.begin(); i < drawTargets.end(); ++i) {
 			drawVisionPoints(i->drawPoints, drawnOn);
-		}
+        }*/
+        DrawPoints(drawTargets, drawnOn);
 	
 		videoWriter.writeFrame(drawnOn);
 

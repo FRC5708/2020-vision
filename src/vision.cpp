@@ -4,9 +4,11 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 
+#include "GripHexFinder.hpp"
 
 // this function from opencv/samples/cpp/tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
 using std::vector;
+using std::cout; using std::endl;
 namespace cv {
 	static double computeReprojectionErrors( const vector<Point3f>& objectPoints,
 											const vector<Point2f>& imagePoints,
@@ -252,14 +254,35 @@ cv::Mat* debugDrawImage;
 void showDebugPoints(VisionDrawPoints& toDraw) {
 	if (!isImageTesting) return;
 	cv::Mat drawOn = debugDrawImage->clone();
-	
+
 	drawVisionPoints(toDraw, drawOn);
-	cv::namedWindow("projection");
+	
+    /*
+    cv::namedWindow("projection");
 	imshow("projection", drawOn);
 	cv::waitKey(0);
-	/*static int imgNum = 0;
+	*/
+
+    //save the jpg image
+    static int imgNum = 0;
 	++imgNum;
-	cv::imwrite("./debugimg_" + std::to_string(imgNum) + ".png", drawOn);*/
+	cv::imwrite("./debugimg_" + std::to_string(imgNum) + ".jpg", drawOn);
+
+}
+
+void DrawPoints(std::vector<cv::Point>& toDraw, cv::Mat& drawOn){
+    //if(!isImageTesting) return;
+
+	cv::Scalar rawPointColor(128, 0);
+    
+    for(auto p : toDraw){
+        cv::circle(drawOn, p, 1, rawPointColor); 
+    }
+
+    /*static int imgNum = 0;
+	++imgNum;
+	cv::imwrite("./pdebugimg_" + std::to_string(imgNum) + ".jpg", drawOn);
+    */
 }
 
 void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& cameraRotationVector, cv::Mat& cameraTranslationVector) {
@@ -450,12 +473,13 @@ ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
 }
 
 std::vector<VisionTarget> processContours(
-	std::vector<std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
+	std::vector< std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
     std::vector<cv::Rect> rects;
 	std::vector<ContourCorners> contourCorners;
 
 	const float minRectWidth = 10; //pixels 
 	const float minRectHeight= 10;
+    cout << "num contours: " << contours->size() << endl;
 	for (auto i : *contours) {
 		cv::Rect rect = cv::boundingRect(i);
 		if (rect.width >= minRectWidth && rect.height >= minRectHeight) {
@@ -464,8 +488,15 @@ std::vector<VisionTarget> processContours(
 				std::cout << "contour: " <<
 			}*/
 			ContourCorners corners = getContourCorners(i);
-			if (corners.valid) contourCorners.push_back(corners);
-		}
+			if (corners.valid){ 
+                contourCorners.push_back(corners);
+		        cout << "TL: " << corners.topleft.x << " " << corners.topleft.y <<endl;
+		        cout << "TR: " << corners.topright.x << " " << corners.topright.y <<endl;
+		        cout << "BL: " << corners.bottomleft.x<<" "<< corners.bottomleft.y<<endl;
+		        cout << "BR: " << corners.bottomright.x<<" "<<corners.bottomright.y<<endl;
+                cout << endl;
+            }
+        }
 	}
 
 	const float rectSizeDifferenceTolerance = 0.5; // fraction of width/height
@@ -515,17 +546,44 @@ std::vector<VisionTarget> processContours(
 	return results;
 }
 
-std::vector<VisionTarget> doVision(cv::Mat image) {
+std::vector<cv::Point> doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
 
-	grip::RedContourGrip finder;
-	finder.Process(image);
-	
-	auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
-	auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
+	//grip::RedContourGrip finder;
+	//finder.Process(image);
+    grip::GripHexFinder finder;
+    finder.Process(image);
 
-	results1.insert(results1.begin(), results2.begin(), results2.end());
-	return results1;
+    std::vector<cv::Point> results;
+    //convert lines to contours
+    std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
+    cout << "Found " << conts.size() << " contours" << std::endl; 
+    int i = 0;
+    for(auto c : conts){
+        //filter out contours that don't make sense
+
+
+        cout << "Contour " << i << " with " << c.size() << " points" << endl;
+        i++;
+        ContourCorners simpleCont = getContourCorners(c);
+        printContourCorners(simpleCont);
+        results.push_back(simpleCont.topleft);
+        results.push_back(simpleCont.topright);
+        results.push_back(simpleCont.bottomleft);
+        results.push_back(simpleCont.bottomright);
+        /*DrawPoints(sCont);*/
+        /*for(auto p : simplifiedCont){
+            cout << "   ";
+            cout << p.x << " " << p.y << endl; 
+        }*/
+    }
+
+	//auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
+	//auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
+
+	//results1.insert(results1.begin(), results2.begin(), results2.end());
+	//return results1;
+    return results;
 }
 
 
