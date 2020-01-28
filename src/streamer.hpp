@@ -83,4 +83,6 @@ public:
 	std::string parseControlMessage(char * commandMessage); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
 	std::string controlMessage(std::string camera, std::string command);
 };
-extern int clientFd; 
+extern int clientFd;
+
+void interceptStdio(int toFd, std::string prefix);
