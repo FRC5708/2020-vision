@@ -80,4 +80,6 @@ public:
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
 };
-extern int clientFd; 
+extern int clientFd;
+
+void interceptStdio(int toFd, std::string prefix);
