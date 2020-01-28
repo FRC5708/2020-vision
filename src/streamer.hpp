@@ -61,6 +61,8 @@ class Streamer {
 public:
 	Streamer(std::function<void(void)>);
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
+	int getVisionCameraWidth() { return visionCamera->width };
+	int getVisionCameraHeight() { return visionCamera->height };
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
@@ -74,10 +76,9 @@ public:
 	// Gets a video frame which is converted to the blue-green-red format usually used by opencv
 	cv::Mat getBGRFrame();
 
-	// visionFrameNotifier is called every new frame from the vision camera
-	std::function<void(void)> visionFrameNotifier; //visionFrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
-	// Runs the thread that grabs and forwards frames from the vision camera
-	void run(); 
+	// visionFrameNotifier is called every new frame from the vision camera.
+	//visionFrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
+	std::function<void(void)> visionFrameNotifier; 
 
 	bool lowExposure = false;
 	void setLowExposure(bool value);

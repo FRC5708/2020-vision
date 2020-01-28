@@ -297,13 +297,11 @@ int main(int argc, char** argv) {
 	}
 	
 	// Scale the calibration parameters to match the current resolution
-	changeCalibResolution(streamer.width, streamer.height);
+	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
 	//std::thread visThread(&VisionThread);
-	std::thread controlSockThread(&ControlSocket);
-
-	// never returns
-	streamer.run();
+	//std::thread controlSockThread(&ControlSocket);
+	ControlSocket();
 
 	return 0;
 }

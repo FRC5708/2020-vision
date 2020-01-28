@@ -460,8 +460,3 @@ void Streamer::pushFrame(int i) {
 	}
 	frameLock.unlock();
 }
-
-void Streamer::run() {
-	// defunct; doesn't do anything anymore
-	while (true) sleep(INT_MAX);
-}
