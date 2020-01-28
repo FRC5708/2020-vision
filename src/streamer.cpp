@@ -143,39 +143,56 @@ void Streamer::start() {
 		std::cout << "Camera " << i << ": " << cameraDevs[i] << std::endl;
 	}
 
+	std::vector<cv::Size2i> targetDims;
+	
 	if (cameraDevs.size() == 1) {
-		this->width = 800; this->height = 448;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {800, 448});
 	}
 	else if (cameraDevs.size() == 2) {
-		//this->width = 800; this->height = 448;
-		this->width = 640; this->height = 360;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {640, 360});
 	}
 	else {
-		//this->width = 640; this->height = 360;
-		this->width = 432; this->height = 240;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {432, 240});
+		targetDims[0] = {640, 360};
 	}
-
-	if (cameraDevs.size() > 1) outputWidth = width*2;
-	else outputWidth = width;
-	if (cameraDevs.size() <= 2) outputHeight = height;
-	else outputHeight = height*2;
-
-	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
-	correctedWidth = ceil(outputWidth/16.0)*16;
-	correctedHeight = ceil(outputHeight/16.0)*16;
-	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
-
-	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	readyState.resize(cameraDevs.size());
 	cameraFrameCounts.resize(cameraDevs.size());
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
-			width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
+	
+	switch (cameraDevs.size()) {
+	case 1:
+		outputWidth = cameraReaders[0]->width; outputHeight = cameraReaders[0]->height;
+		break;
+	case 2:
+		outputWidth = cameraReaders[0]->width + cameraReaders[1]->width;
+		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height);
+		break;
+	case 3:
+		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width);
+		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height) + cameraReaders[2]->height;
+		break;
+	case 4:
+		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width + cameraReaders[3]->width);
+		outputHeight = std::max(cameraReaders[0]->height + cameraReaders[2]->height, cameraReaders[1]->height + cameraReaders[3]->height);
+		break;
+	default:
+		std::cerr << "Over 4 cameras unsupported" << std::endl;
+		exit(1);
+	}
+	
+	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
+	correctedWidth = ceil(outputWidth/16.0)*16;
+	correctedHeight = ceil(outputHeight/16.0)*16;
+	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
+	
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	initialized = true;	
 
@@ -385,7 +402,7 @@ void Streamer::pushFrame(int i) {
 		switch(i){
 			case 0: { //Vision camera
 				
-				cv::Mat visionFrame = frameBuffer.colRange(0, width).rowRange(0, height);
+				cv::Mat visionFrame = frameBuffer.colRange(0, visionCamera->width).rowRange(0, visionCamera->height);
 				visionCamera->getMat().copyTo(visionFrame);
 
 				// Draw an overlay on the frame before handing it off to gStreamer
@@ -395,13 +412,19 @@ void Streamer::pushFrame(int i) {
 				break;
 			}
 			case 1: //Second camera
-				cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(0, height));
+				cameraReaders[1]->getMat().copyTo(frameBuffer
+				.colRange(outputWidth - cameraReaders[1]->width, outputWidth)
+				.rowRange(0, cameraReaders[1]->height));
 				break;
 			case 2: //Third camera
-				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, height*2));
+				cameraReaders[2]->getMat().copyTo(frameBuffer
+				.colRange(0, cameraReaders[2]->width)
+				.rowRange(outputHeight - cameraReaders[2]->height, outputHeight));
 				break;
 			case 3: //Fourth camera (untested)
-				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(height, height*2));
+				cameraReaders[3]->getMat().copyTo(frameBuffer
+				.colRange(outputWidth - cameraReaders[3]->width, outputWidth)
+				.rowRange(outputHeight - cameraReaders[3]->height, outputHeight));
 				break;
 			default:
 				cerr << "More than four cameras are unsupported at this time." << endl;

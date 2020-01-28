@@ -60,7 +60,7 @@ class Streamer {
 
 public:
 	Streamer(std::function<void(void)>);
-	int width, height, outputWidth, outputHeight, correctedWidth, correctedHeight;
+	int outputWidth, outputHeight, correctedWidth, correctedHeight;
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
