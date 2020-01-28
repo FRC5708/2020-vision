@@ -12,7 +12,7 @@ if [ -z "$GST_COMMAND" ]; then
         if [ -z "$PI_ADDR" ]; then PI_ADDR=10.57.8.5; fi
     else
         GST_COMMAND="gst-launch-1.0"
-        if [ -z "$PI_ADDR" ]; then PI_ADDR=raspberrypi.local; fi
+        if [ -z "$PI_ADDR" ]; then PI_ADDR=team5708pi.local; fi
     fi
 fi
 
