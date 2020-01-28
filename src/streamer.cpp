@@ -103,7 +103,7 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 
 	command << "! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
 	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
-	<< ",framerate=30/1,profile=high ! rtph264pay ! gdppay ! udpsink"
+	<< ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
 
 	if (files.size() == 2) {
