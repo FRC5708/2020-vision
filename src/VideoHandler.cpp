@@ -315,7 +315,7 @@ void ThreadedVideoReader::reset(){
 */
 int ThreadedVideoReader::setResolution(unsigned int width,unsigned int height){
 	bool foundValidResolution=false;
-	for(auto& res : resolutions){
+	for(auto& res : resolutions){ //Yes, this is less efficient than it could be, but we're talking about with a list with <50 items here.
 		if(res.discrete.width==width && res.discrete.height==height){
 			foundValidResolution=true; 
 			break;
@@ -323,8 +323,10 @@ int ThreadedVideoReader::setResolution(unsigned int width,unsigned int height){
 	}
 	if(!foundValidResolution) return 1; //Given resolution is invalid.
 	this->width=width; this->height=height;
+	std::cout << "Changing resolution to " << width << ":" << height << " ..." << std::endl;
 	reset();
-	return 0; //Not implemented.
+	std::cout << "Succesfully reset resolution" << std::endl;
+	return 0;
 }
 
 

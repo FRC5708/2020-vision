@@ -436,7 +436,7 @@ string Streamer::parseControlMessage(char * message){
 	if(indexOfDelimiter==string::npos){
 		//There just isn't a : in there.
 		status << "UNPARSABLE MESSAGE (No colon-seperator)";
-		return status.str().c_str(); //Delightful.
+		return status.str(); //Delightful.
 	}
 	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
 	string command=commandMessage.substr(indexOfDelimiter+1,string::npos);
@@ -449,7 +449,7 @@ string Streamer::parseControlMessage(char * message){
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
 		status << "UNPARSABLE MESSAGE (No cameras specified)\n";
-		return status.str().c_str(); //Delightful
+		return status.str(); //Delightful
 	}
 	for(string &i : cameras){
 		string return_status=controlMessage(i,command);
@@ -458,9 +458,31 @@ string Streamer::parseControlMessage(char * message){
 	return status.str(); //Delightful.
 
 }
-string Streamer::controlMessage(string camera, string command){
+string Streamer::controlMessage(string camera_string, string command){
 	std::stringstream status=std::stringstream("");
-	status << "Command \"" << command << "\" not implemented yet.";
+	int cam_no;
+	ThreadedVideoReader* camera=nullptr;
+	try{
+		cam_no=stoi(camera_string);
+		camera=cameraReaders.at(cam_no).get();
+	}catch(...){
+		status << "-1:INVALID CAMERA NO";
+		goto return_label;
+	}
+	if(command.substr(0,10).compare("resolution")==0){
+		std::stringstream toParse=std::stringstream(command);
+		string buffer;
+		toParse >> buffer; //Dispose of the command name
+		unsigned int width,height;
+		toParse >> width;
+		toParse >> height;
+		int retval = camera->setResolution(width,height);
+		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
+		goto return_label;
+	}
+
+	status << "-1:Command \"" << command << "\" not implemented yet.";
+	return_label:
 	return status.str();
 }
 void Streamer::run() {
