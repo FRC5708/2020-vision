@@ -1,5 +1,6 @@
 #!/bin/bash
-if [ -z "$PI_ADDR" ]; then PI_ADDR=raspberrypi.local; fi
+if [ -z "$PI_ADDR" ]; then PI_ADDR=team5708pi.local; fi
+if [ -z "$PORT" ]; then PORT=22; fi
 
 #PI_DIR="~/vision-code"
 PI_DIR="~/vision-code-test"
