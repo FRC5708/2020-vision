@@ -469,7 +469,7 @@ string Streamer::parseControlMessage(char * message){
 	**Returned status syntax: 
 	**	Camerano1:RETNO:STATUS MESSAGE
 	**  Camerano2:RETNO:STATUS MESSAGE
-	**  ...\0
+	**  ...
 	**If the original control message is completely unparseable, the return status is
 	**  UNPARSABLE MESSAGE
 	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
@@ -480,8 +480,7 @@ string Streamer::parseControlMessage(char * message){
 	unsigned int indexOfDelimiter=commandMessage.find(':');
 	if(indexOfDelimiter==string::npos){
 		//There just isn't a : in there.
-		status << "UNPARSABLE MESSAGE (No colon-seperator)";
-		return status.str(); //Delightful.
+		return "UNPARSABLE MESSAGE (No colon-seperator)";
 	}
 	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
 	string command=commandMessage.substr(indexOfDelimiter+1,string::npos);
@@ -493,8 +492,7 @@ string Streamer::parseControlMessage(char * message){
 	}
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
-		status << "UNPARSABLE MESSAGE (No cameras specified)\n";
-		return status.str(); //Delightful
+		return "UNPARSABLE MESSAGE (No cameras specified)\n";
 	}
 	for(string &i : cameras){
 		string return_status=controlMessage(i,command);
@@ -504,16 +502,19 @@ string Streamer::parseControlMessage(char * message){
 
 }
 string Streamer::controlMessage(string camera_string, string command){
+
 	std::stringstream status=std::stringstream("");
 	int cam_no;
 	ThreadedVideoReader* camera=nullptr;
+	//Make sure that we actually were given a valid camera.
 	try{
 		cam_no=stoi(camera_string);
 		camera=cameraReaders.at(cam_no).get();
 	}catch(...){
-		status << "-1:INVALID CAMERA NO";
-		goto return_label;
+		return "-1:INVALID CAMERA NO";
 	}
+
+	//Resolution command
 	if(command.substr(0,10).compare("resolution")==0){
 		std::stringstream toParse=std::stringstream(command);
 		string buffer;
@@ -521,13 +522,15 @@ string Streamer::controlMessage(string camera_string, string command){
 		unsigned int width,height;
 		toParse >> width;
 		toParse >> height;
+		if(toParse.fail()){
+			return "-1:INVALID RESOLUTION (Not unsigned int)";
+		}
 		int retval = camera->setResolution(width,height);
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
-		goto return_label;
 	}
-
-	status << "-1:Command \"" << command << "\" not implemented yet.";
-	return_label:
+	else{
+		status << "-1:Command \"" << command << "\" not implemented yet.";
+	}
 	return status.str();
 }
 void Streamer::run() {
