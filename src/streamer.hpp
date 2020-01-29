@@ -56,13 +56,15 @@ class Streamer {
 	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
 	int frameCount = 0;
 	std::vector<int> cameraFrameCounts;
+	
+	void setupFramebuffer();
 
 
 public:
 	Streamer(std::function<void(void)>);
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
-	int getVisionCameraWidth() { return visionCamera->width };
-	int getVisionCameraHeight() { return visionCamera->height };
+	int getVisionCameraWidth() { return visionCamera->width; }
+	int getVisionCameraHeight() { return visionCamera->height; }
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;

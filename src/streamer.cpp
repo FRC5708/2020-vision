@@ -8,6 +8,7 @@
 #include <thread>
 
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include <unistd.h>
 #include <signal.h>
@@ -190,7 +191,7 @@ void Streamer::start() {
 	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
 	correctedWidth = ceil(outputWidth/16.0)*16;
 	correctedHeight = ceil(outputHeight/16.0)*16;
-	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
+	setupFramebuffer();
 	
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
@@ -198,6 +199,40 @@ void Streamer::start() {
 
 	// Start the thread that listens for the signal from the driver station
 	std::thread(&Streamer::dsListener, this).detach();
+}
+
+void Streamer::setupFramebuffer() {
+	
+	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
+	frameBuffer.setTo(cv::Scalar{0, 128});
+	
+	cv::Mat source = cv::imread("/home/pi/vision-code/background.jpg");
+	if (source.cols == 0 || source.rows == 0) return;
+	constexpr int tileX = 5, tileY = 3;
+	
+	int tileWidth = outputWidth / tileX, tileHeight = outputHeight / tileY;
+	
+	cv::Mat badColorTile, badChromaResTile, tile;
+	cv::resize(source, badColorTile, {tileWidth, tileHeight});
+	assert(badColorTile.type() == CV_8UC3);
+	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
+	tile.create(tileHeight, tileWidth, CV_8UC2);
+	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
+		
+		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
+		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
+		
+		uint8_t avgU = (p1[1] + p2[1]) / 2;
+		uint8_t avgV = (p1[2] + p2[2]) / 2;
+		tile.at<cv::Vec2b>(y,x) = {p1[0], avgU};
+		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
+	}
+	
+	assert(tile.type() == CV_8UC2);
+	
+	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
+		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
+	}
 }
 
 void Streamer::dsListener() {
