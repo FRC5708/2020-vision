@@ -112,10 +112,17 @@ void VisionThread() {
 
 	DataComm rioComm=DataComm("10.57.8.2", "5808");
 
-	
+	auto lastFrameTime = currentFrameTime;
 	while (true) {
+		
+		// If no new frame has come from the camera, wait.
+		if (lastFrameTime == currentFrameTime) {
+			std::unique_lock<std::mutex> uniqueWaitMutex(waitMutex);
+			condition.wait(uniqueWaitMutex);
+		}
+		
 		// currentFrameTime serves as a unique marker for this frame
-		auto lastFrameTime = currentFrameTime;
+		lastFrameTime = currentFrameTime;
 		lastResults = doVision(streamer.getBGRFrame());
         /*
 		//streamer.setDrawTargets(&lastResults);
@@ -128,11 +135,7 @@ void VisionThread() {
 		
 		rioComm.sendData(calcs, lastFrameTime);
 		*/
-		// If no new frame has come from the camera, wait.
-		if (lastFrameTime == currentFrameTime) {
-			std::unique_lock<std::mutex> uniqueWaitMutex(waitMutex);
-			condition.wait(uniqueWaitMutex);
-		}
+		
 	}
 }
 
@@ -180,7 +183,7 @@ bool readCalibParams(const char* path, bool failHard = true) {
 // change camera calibration to match resolution of incoming image
 void changeCalibResolution(int width, int height) {
 	assert(calib::cameraMatrix.type() == CV_64F);
-	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.01) {
+	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.03) {
 		cerr << "wrong aspect ratio recieved from camera! Vision will be borked!" << endl;
 		return;
 	}
