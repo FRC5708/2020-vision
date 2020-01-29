@@ -103,7 +103,7 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 
 	command << "! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
 	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
-	<< ",framerate=30/1,profile=high ! rtph264pay ! gdppay ! udpsink"
+	<< ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
 
 	if (files.size() == 2) {
@@ -296,10 +296,10 @@ void Streamer::dsListener() {
 		if (write(clientFd, message, sizeof(message)) == -1) {
 			perror("write");
 		}
+		interceptStdio(clientFd, "Remote: ");
 
-		if (close(clientFd) == -1) perror("close");
+		//if (close(clientFd) == -1) perror("close");
 		
-
 		// wait for client's gstreamer to initialize
 		sleep(2);
 
@@ -319,6 +319,51 @@ void Streamer::dsListener() {
 
 		handlingLaunchRequest = false;
 	}
+}
+
+// Forwards everything in fromFd to toFd, with prefix before every line
+void interceptFile(int fromFd, int toFd, string prefix) {
+	std::thread([=]() {
+
+		// The device that fromFd was previously written to
+		int oldOut = dup(fromFd);
+		
+		int pipefds[2];
+		pipe(pipefds);
+
+		// move the write end of the pipe 
+		dup2(pipefds[1], fromFd);
+		close(pipefds[1]);
+
+		FILE* fromOutput = fdopen(pipefds[0], "r");
+		if (fromOutput == nullptr) {
+			perror("fdopen");
+			return;
+		}
+		char* line = nullptr;
+		size_t bufsize = 0;
+		while (true) {
+			ssize_t len = getline(&line, &bufsize, fromOutput);
+			if (len == -1) continue;
+			write(oldOut, line, len);
+
+			if (write(toFd, (prefix + std::string(line, len)).c_str(), len + prefix.size()) < 0 &&  
+				(errno == EBADF || errno == EPIPE)) {
+
+				// toFd was closed. Clean up...
+				dup2(oldOut, fromFd);
+				close(oldOut);
+				fclose(fromOutput);
+
+				cout << "exiting interceptFile" << endl;
+				return;
+			}
+		}
+	}).detach();
+}
+void interceptStdio(int toFd, string prefix) {
+	interceptFile(STDOUT_FILENO, toFd, prefix);
+	interceptFile(STDERR_FILENO, toFd, prefix);
 }
 
 
