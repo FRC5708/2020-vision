@@ -235,7 +235,7 @@ void drawTargets(cv::Mat drawOn) {
 	std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
 	cv::line(drawOn, 
 	{ drawOn.cols/2, drawOn.rows/2 }, 
-	{ drawOn.cols/2 * (1 - sin(angle)), drawOn.rows/2 * (1 - cos(angle)) },
+	{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
 	 { 0, 0 });
 }
 void visionFrameNotifier(){
@@ -298,16 +298,11 @@ int main(int argc, char** argv) {
 	}
 	
 	// Scale the calibration parameters to match the current resolution
-	changeCalibResolution(streamer.width, streamer.height);
+	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
 	//std::thread visThread(&VisionThread);
-	std::thread controlSockThread(&ControlSocket);
-	std::function<const char*(char*)> simplecallback = [](char* message){
-		return message;
-	};
-	ControlPacketReceiver test = ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
-	// never returns
-	streamer.run();
+	//std::thread controlSockThread(&ControlSocket);
+	ControlSocket();
 
 	return 0;
 }

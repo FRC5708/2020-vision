@@ -43,7 +43,8 @@ public:
 	virtual ~VideoReader();
 	cv::Mat getMat(); // Get the most-recently-grabbed frame in an opencv Mat. The data is not copied.
     bool grabFrame(); // Grab the next frame from the camera.
-
+	int getWidth();
+	int getHeight(); 
 	// Turns off auto-exposure (on by default) and sets the exposure manually. 
 	// value is a camera-specific integer. 50 is "kinda dark" for our cameras.
 	void setExposure(int value) { setExposureVals(false, value); }
@@ -60,13 +61,22 @@ public:
 	int setResolution(unsigned int width, unsigned int height);
 	void reset(); //Wrapper for VideoReader reset(). (Should this be public? This should probably not be called willy-nilly, but it's useful.)
 	const std::chrono::steady_clock::time_point getLastUpdate();
+
+	// Get a rolling average of the frame interval from the past second, which includes the time since the most recent frame
+	double getMeanFrameInterval();
 private:
 	bool grabFrame(); //Thread-safe wrapper for VideoReader::grabFrame()
 	std::chrono::steady_clock::time_point last_update;
 	std::function<void(void)> newFrameCallback; //Callback function called whenever we succesfully get a new frame.
 	std::chrono::steady_clock timeout_clock;
+
+	static constexpr int frameTimeCount = 100;
+	// Ring buffer with last frameTimeCount frame times
+	std::chrono::steady_clock::time_point frameTimes[frameTimeCount];
+	int frameTimeIdx = 0;
+
 	void resetterMonitor(); //Monitors to see if camera should be reset, calls reset() if it should be so.
-	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 	// Auto-reset timeout.
+    static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000);
 	std::mutex resetLock;
 	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handles
 };
