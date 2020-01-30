@@ -8,6 +8,7 @@
 #include <thread>
 
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include <unistd.h>
 #include <signal.h>
@@ -58,70 +59,17 @@ Streamer::Streamer(std::function<void(void)> callback){
 	visionFrameNotifier=callback;
 }
 
-void addSrc(std::stringstream& cmd, const string file, int width, int height) {
-	cmd << " v4l2src device=" << file << 
-	" ! video/x-raw,width=" << width << ",height=" << height
-	 << ",framerate=30/1 ! videoconvert "; // might need queue at the end
-}
-
-void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, vector<string> files) {
+void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
-	assert(files.size() > 0);
-
+	
 	// Codec is specific to the raspberry pi's gpu
 	string codec = "omxh264enc";
-	string gstreamCommand = "gst-launch-1.0";	
-
+	string gstreamCommand = "gst-launch-1.0";
+	
 	std::stringstream command;
-
-	command << gstreamCommand;
-	addSrc(command, files[0], width, height);
-
-	//int outputWidth, outputHeight;
-
-	// https://www.technomancy.org/gstreamer/playing-two-videos-side-by-side/
-
-	int outputWidth, outputHeight;
-
-	if (files.size() == 1) {
-		outputWidth = width; outputHeight = height;
-	}
-	else if (files.size() == 2) {
-		outputWidth = width*2; outputHeight = height;
-
-		command << " ! videobox border-alpha=0 right=-" << width << " ! videomixer name=mix ";
-	}
-	else if (files.size() == 3 || files.size() == 4) {
-		outputWidth = width*2; outputHeight = height*2;
-		command << " ! videobox border-alpha=0 right=-" << width << " bottom=-" << height
-		 << " ! videomixer name=mix ";
-	}
-	else {
-		std::cerr << "too many cameras!" << std::endl;
-		return;
-	}
-
-	command << "! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
-	" control-rate=variable ! video/x-h264, width=" << outputWidth << ",height=" << outputHeight 
-	<< ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
+	command << gstreamCommand << " v4l2src device=" << file << " ! videoscale ! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
+	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
 	<< " host=" << recieveAddress << " port=" << port;
-
-	if (files.size() == 2) {
-		addSrc(command, files[1], width, height);
-		command << " ! videobox border-alpha=0 left=-" << width << " ! mix. ";
-	}
-	else if (files.size() == 3 || files.size() == 4) {
-		addSrc(command, files[1], width, height);
-		command << " ! videobox border-alpha=0 left=-" << width << " bottom=-" << height << " ! mix. ";
-		
-		addSrc(command, files[2], width, height);
-		command << " ! videobox border-alpha=0 right=-" << width << " top=-" << height << " ! mix. ";
-
-		if (files.size() == 4) {
-			addSrc(command, files[2], width, height);
-			command << " ! videobox border-alpha=0 left=-" << width << " top=-" << height << " ! mix. ";
-		}
-	}
 
 	string strCommand = command.str();
 	
@@ -196,44 +144,95 @@ void Streamer::start() {
 		std::cout << "Camera " << i << ": " << cameraDevs[i] << std::endl;
 	}
 
+	std::vector<cv::Size2i> targetDims;
+	
 	if (cameraDevs.size() == 1) {
-		this->width = 800; this->height = 448;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {800, 448});
 	}
 	else if (cameraDevs.size() == 2) {
-		//this->width = 800; this->height = 448;
-		this->width = 640; this->height = 360;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {640, 360});
 	}
 	else {
-		//this->width = 640; this->height = 360;
-		this->width = 432; this->height = 240;
+		targetDims = std::vector<cv::Size2i>(cameraDevs.size(), {432, 240});
+		targetDims[0] = {640, 360};
 	}
-
-	if (cameraDevs.size() > 1) outputWidth = width*2;
-	else outputWidth = width;
-	if (cameraDevs.size() <= 2) outputHeight = height;
-	else outputHeight = height*2;
-
-	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
-	correctedWidth = ceil(outputWidth/16.0)*16;
-	correctedHeight = ceil(outputHeight/16.0)*16;
-	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
-
-	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	readyState.resize(cameraDevs.size());
 	cameraFrameCounts.resize(cameraDevs.size());
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
-			width, height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
+	
+	switch (cameraDevs.size()) {
+	case 1:
+		outputWidth = cameraReaders[0]->width; outputHeight = cameraReaders[0]->height;
+		break;
+	case 2:
+		outputWidth = cameraReaders[0]->width + cameraReaders[1]->width;
+		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height);
+		break;
+	case 3:
+		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width);
+		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height) + cameraReaders[2]->height;
+		break;
+	case 4:
+		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width + cameraReaders[3]->width);
+		outputHeight = std::max(cameraReaders[0]->height + cameraReaders[2]->height, cameraReaders[1]->height + cameraReaders[3]->height);
+		break;
+	default:
+		std::cerr << "Over 4 cameras unsupported" << std::endl;
+		exit(1);
+	}
+	
+	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
+	correctedWidth = ceil(outputWidth/16.0)*16;
+	correctedHeight = ceil(outputHeight/16.0)*16;
+	setupFramebuffer();
+	
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 
 	initialized = true;	
 
 	// Start the thread that listens for the signal from the driver station
 	std::thread(&Streamer::dsListener, this).detach();
+}
+
+void Streamer::setupFramebuffer() {
+	
+	frameBuffer.create(correctedHeight, correctedWidth, CV_8UC2);
+	frameBuffer.setTo(cv::Scalar{0, 128});
+	
+	cv::Mat source = cv::imread("/home/pi/vision-code/background.jpg");
+	if (source.cols == 0 || source.rows == 0) return;
+	constexpr int tileX = 5, tileY = 3;
+	
+	int tileWidth = outputWidth / tileX, tileHeight = outputHeight / tileY;
+	
+	cv::Mat badColorTile, badChromaResTile, tile;
+	cv::resize(source, badColorTile, {tileWidth, tileHeight});
+	assert(badColorTile.type() == CV_8UC3);
+	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
+	tile.create(tileHeight, tileWidth, CV_8UC2);
+	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
+		
+		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
+		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
+		
+		uint8_t avgU = (p1[1] + p2[1]) / 2;
+		uint8_t avgV = (p1[2] + p2[2]) / 2;
+		tile.at<cv::Vec2b>(y,x) = {p1[0], avgU};
+		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
+	}
+	
+	assert(tile.type() == CV_8UC2);
+	
+	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
+		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
+	}
 }
 
 void Streamer::dsListener() {
@@ -309,7 +308,7 @@ void Streamer::dsListener() {
 
 		//vector<string> outputVideoDevs = cameraDevs;
 		//outputVideoDevs[0] = loopbackDev;
-		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", {loopbackDev});
+		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
 
 		// It was planned to draw an overlay over the video feed in the driver station.
 		// This sends the overlay data.
@@ -385,14 +384,40 @@ void Streamer::setLowExposure(bool value) {
 	}
 }
 
+
 bool Streamer::checkFramebufferReadiness(){
 	auto time = std::chrono::steady_clock().now();
-	
-	for(unsigned int i=0;i<cameraDevs.size();i++){
-		// if there is no new frame from the camera, but the camera is not dead, return false
-		if(!readyState[i] && time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
-			return false;
+
+
+	double bestFrameTime = INFINITY;
+	double frameTimes[cameraDevs.size()];
+
+	for(unsigned int i=0;i<cameraDevs.size();i++) { 
+		frameTimes[i] = cameraReaders[i]->getMeanFrameInterval();
+		if (frameTimes[i] < bestFrameTime) {
+			bestFrameTime = frameTimes[i];
 		}
+	}
+	
+	// These are the cameras we care if are ready or not.
+	vector<bool> synchroCameras(cameraDevs.size(), false);
+	for(unsigned int i=0;i<cameraDevs.size();i++) {
+		synchroCameras[i] = 
+		frameTimes[i] / bestFrameTime > 0.85 // If the camera is fast
+		 // and it's not dead
+		 && time - cameraReaders[i]->last_update < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
+		 
+	}
+	// If there are no synchro cameras (unlikely, but possible if framerates are changing) disregard deadness
+	bool hasSynchro = false;
+	for(unsigned int i=0;i<cameraDevs.size();i++) hasSynchro |= synchroCameras[i];
+	if (!hasSynchro) for(unsigned int i=0;i<cameraDevs.size();i++) {
+		synchroCameras[i] = frameTimes[i] / bestFrameTime > 0.85;
+	}
+	
+	for(unsigned int i=0;i<cameraDevs.size();i++) {
+		// If we care about the camera, but it's not ready.
+		if (synchroCameras[i] && !readyState[i]) return false;
 	}
 	return true;
 }
@@ -412,7 +437,7 @@ void Streamer::pushFrame(int i) {
 		switch(i){
 			case 0: { //Vision camera
 				
-				cv::Mat visionFrame = frameBuffer.colRange(0, width).rowRange(0, height);
+				cv::Mat visionFrame = frameBuffer.colRange(0, visionCamera->width).rowRange(0, visionCamera->height);
 				visionCamera->getMat().copyTo(visionFrame);
 
 				// Draw an overlay on the frame before handing it off to gStreamer
@@ -422,13 +447,19 @@ void Streamer::pushFrame(int i) {
 				break;
 			}
 			case 1: //Second camera
-				cameraReaders[1]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(0, height));
+				cameraReaders[1]->getMat().copyTo(frameBuffer
+				.colRange(outputWidth - cameraReaders[1]->width, outputWidth)
+				.rowRange(0, cameraReaders[1]->height));
 				break;
 			case 2: //Third camera
-				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(0, width).rowRange(height, height*2));
+				cameraReaders[2]->getMat().copyTo(frameBuffer
+				.colRange(0, cameraReaders[2]->width)
+				.rowRange(outputHeight - cameraReaders[2]->height, outputHeight));
 				break;
 			case 3: //Fourth camera (untested)
-				cameraReaders[2]->getMat().copyTo(frameBuffer.colRange(width, width*2).rowRange(height, height*2));
+				cameraReaders[3]->getMat().copyTo(frameBuffer
+				.colRange(outputWidth - cameraReaders[3]->width, outputWidth)
+				.rowRange(outputHeight - cameraReaders[3]->height, outputHeight));
 				break;
 			default:
 				cerr << "More than four cameras are unsupported at this time." << endl;
@@ -438,6 +469,7 @@ void Streamer::pushFrame(int i) {
 		frameLock.unlock();
 		return;
 	}
+
 	if(checkFramebufferReadiness()){
 		videoWriter.writeFrame(frameBuffer);
 		
@@ -462,9 +494,4 @@ void Streamer::pushFrame(int i) {
 		}
 	}
 	frameLock.unlock();
-}
-
-void Streamer::run() {
-	// defunct; doesn't do anything anymore
-	while (true) sleep(INT_MAX);
 }

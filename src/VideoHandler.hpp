@@ -63,8 +63,16 @@ public:
 	std::chrono::steady_clock::time_point last_update;
 	volatile bool hasNewFrame = false;
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
+
+	// Get a rolling average of the frame interval from the past second, which includes the time since the most recent frame
+	double getMeanFrameInterval();
 private:
 	std::chrono::steady_clock timeout_clock;
+
+	static constexpr int frameTimeCount = 100;
+	// Ring buffer with last frameTimeCount frame times
+	std::chrono::steady_clock::time_point frameTimes[frameTimeCount];
+	int frameTimeIdx = 0;
 
 	void resetterMonitor();
 	// Only reset the camera if it's been dead for over this amount of time.
