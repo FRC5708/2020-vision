@@ -297,9 +297,9 @@ struct SolvePnpResult {
 	double pixError, inchHeight, inchRobotX, inchRobotY;
 	bool valid;
 
-	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, 
+	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, double reprojError,
 	std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
-	rvec(rvec), tvec(tvec) {
+	rvec(rvec), tvec(tvec), pixError(reprojError) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
 
 		cv::Mat rotation, translation;
@@ -311,7 +311,8 @@ struct SolvePnpResult {
 			return;
 		} 
 
-		pixError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
+		double computedError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
+		assert(abs(computedError - reprojError) > 0.1);
 
 		cv::Vec3d angles = getEulerAngles(rvec);
 		
@@ -426,48 +427,46 @@ ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
 		left.topright, right.topleft, left.bottomright//, right.bottom
 	};
 
-	cv::Mat rvec, tvec;
+	/*cv::Mat rvec, tvec;
 	bool retval = cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
 	//std::cout << "solvePnP withoutprev retval: " << retval << std::endl;
 	SolvePnpResult resultWithoutPrevious(rvec, tvec, worldPoints, imagePoints);
 
 	SolvePnpResult* resultUsing = nullptr;
-	SolvePnpResult resultWithPrevious;
+	SolvePnpResult resultWithPrevious;*/
 
-	if (prevResult.valid) {
-		rvec = prevResult.rvec; tvec = prevResult.tvec;
-		try {
-			cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs, rvec, tvec, true, cv::SOLVEPNP_ITERATIVE);
-		}
-		catch(const cv::Exception e) {
-			std::cerr << "cv::solvePnP useExtrinsicGuess threw a cv::Exception: " << e.msg << std::endl;
-			resultUsing = &resultWithoutPrevious;
-			return processResult(resultUsing, worldPoints, imagePoints, right.bottomleft);
-		}
+	cv::Mat rvecs, tvecs, reprojErrors;
+	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
+	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE, cv::noArray(), cv::noArray(), reprojErrors);
 
-		resultWithPrevious = SolvePnpResult(rvec, tvec, worldPoints, imagePoints);
+	SolvePnpResult result1(rvecs.row(0), tvecs.row(0), reprojErrors.at<double>(0), worldPoints, imagePoints);
+	SolvePnpResult result2(rvecs.row(1), tvecs.row(1), reprojErrors.at<double>(1), worldPoints, imagePoints);
 
-		std::cout << "without prev: err:" << resultWithoutPrevious.pixError << " height:" << resultWithoutPrevious.inchHeight
-		<< "with prev: err:" << resultWithPrevious.pixError << " height:" << resultWithPrevious.inchHeight << std::endl;
+	// solvePnpGeneric sorts results by reprojection error
+	assert(result1.pixError <= result2.pixError);
 
-		double pixMaxError = std::max(3, 
+	SolvePnpResult* resultUsing = nullptr;
+
+	double pixMaxError = std::max(3, 
 				((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
 
 
-		if (resultWithoutPrevious.pixError > pixMaxError) resultUsing = &resultWithPrevious;
-		if (resultWithPrevious.pixError > pixMaxError) resultUsing = &resultWithoutPrevious;
-		if (resultUsing != nullptr && resultUsing->pixError > pixMaxError) return { false, {}};
+	if (result1.pixError > pixMaxError) return { false, {}};
+	else if (result2.pixError > pixMaxError) resultUsing = &result1;
+	else {
 
-		if (resultUsing == nullptr) {
-			if (resultWithoutPrevious.withinHeight() && !resultWithPrevious.withinHeight()) resultUsing = &resultWithoutPrevious;
-			else if (resultWithPrevious.withinHeight() && !resultWithoutPrevious.withinHeight()) resultUsing = &resultWithPrevious;
-			else resultUsing = (resultWithoutPrevious.pixError < resultWithPrevious.pixError) 
-			? &resultWithoutPrevious : &resultWithPrevious;
-		}	 
+		// guess which solution is correct using the height. 
+		// Another idea would be to use the direction the robot moves (from encoders/gyro).
+
+		if (result1.withinHeight() && !result2.withinHeight()) resultUsing = &result1;
+		else if (result2.withinHeight() && !result1.withinHeight()) resultUsing = &result2;
+		else resultUsing = &result1;
 	}
-	else resultUsing = &resultWithoutPrevious;
+	
+	std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
+		<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight
+		<< "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
-	if (resultUsing == &resultWithPrevious) std::cout << "Using previous result with useExtrinsicGuess" << std::endl;
 
 	return processResult(resultUsing, worldPoints, imagePoints, right.bottomleft);
 }
