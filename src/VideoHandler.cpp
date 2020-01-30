@@ -297,7 +297,7 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 }
 void VideoReader::reset(){
 	closeReader();
-	sleep(4);
+	sleep(2); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
 	openReader();
 }
 void ThreadedVideoReader::reset(){
