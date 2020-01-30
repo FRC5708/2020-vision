@@ -242,6 +242,7 @@ void Streamer::dsListener() {
 		perror("socket");
 		return;
 	}
+	fcntl(servFd, F_SETFD, fcntl(servFd, F_GETFD) | FD_CLOEXEC);
 	
 	int flag = 1;
 	if (setsockopt(servFd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)) == -1) {

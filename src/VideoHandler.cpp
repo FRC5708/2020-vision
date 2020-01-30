@@ -25,7 +25,7 @@ bool VideoReader::tryOpenReader() {
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
-	while ((camfd = open(deviceFile.c_str(), O_RDWR)) < 0) {
+	while ((camfd = open(deviceFile.c_str(), O_RDWR|O_CLOEXEC)) < 0) {
 		perror("open");
 		if (errno == EBUSY) {
 			sleep(1);
@@ -308,7 +308,7 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 
 // https://gist.github.com/thearchitect/96ab846a2dae98329d1617e538fbca3c
 void VideoWriter::openWriter(int width, int height, const char* file) {		
-	v4l2lo = open(file, O_WRONLY);
+	v4l2lo = open(file, O_WRONLY|O_CLOEXEC);
 	if(v4l2lo < 0) {
 		std::cout << "Error opening v4l2l device: " << strerror(errno);
 		exit(-2);
