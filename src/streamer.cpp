@@ -48,9 +48,10 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 
 void Streamer::handleCrash(pid_t pid) {
 	if (!handlingLaunchRequest) {
-		for (auto i : gstInstances) {
+		for (auto& i : gstInstances) {
 			if (i.pid == pid) {
-				runCommandAsync(i.command, servFd);
+				std::cout << "Realunching gStreamer after crash..." << std::endl;
+				i.pid = runCommandAsync(i.command, servFd);
 			}
 		}
 	}
@@ -404,7 +405,7 @@ bool Streamer::checkFramebufferReadiness(){
 	vector<bool> synchroCameras(cameraDevs.size(), false);
 	for(unsigned int i=0;i<cameraDevs.size();i++) {
 		synchroCameras[i] = 
-		frameTimes[i] / bestFrameTime > 0.85 // If the camera is fast
+		bestFrameTime / frameTimes[i] > 0.85 // If the camera is fast
 		 // and it's not dead
 		 && time - cameraReaders[i]->last_update < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
 		 
@@ -413,7 +414,7 @@ bool Streamer::checkFramebufferReadiness(){
 	bool hasSynchro = false;
 	for(unsigned int i=0;i<cameraDevs.size();i++) hasSynchro |= synchroCameras[i];
 	if (!hasSynchro) for(unsigned int i=0;i<cameraDevs.size();i++) {
-		synchroCameras[i] = frameTimes[i] / bestFrameTime > 0.85;
+		synchroCameras[i] = bestFrameTime / frameTimes[i] > 0.85;
 	}
 	
 	for(unsigned int i=0;i<cameraDevs.size();i++) {
