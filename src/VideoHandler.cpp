@@ -17,8 +17,8 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
  haven't tested (especially non-usb cameras) might not work.
 */
 
-VideoReader::VideoReader(int width, int height, const char* file) {
-	this->width = width; this->height = height; deviceFile = file;
+VideoReader::VideoReader(int width, int height, const char* file) : deviceFile(std::string(file)){
+	this->width = width; this->height = height;
 }
 bool VideoReader::tryOpenReader() {
 
@@ -295,16 +295,20 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Because I'm a janky spinlock
 	}
 }
-void ThreadedVideoReader::reset(){
-	resetLock.lock();
-	
+void VideoReader::reset(){
 	closeReader();
 	sleep(4);
 	openReader();
-
+}
+void ThreadedVideoReader::reset(){
+	resetLock.lock();
+	VideoReader::reset();
 	last_update = timeout_clock.now();
-
 	resetLock.unlock();
+
+}
+const std::chrono::steady_clock::time_point ThreadedVideoReader::getLastUpdate(){
+	return last_update;
 }
 /* int ThreadedVideoReader::setResolution(int width, int height)
 ** This function attempts to set the resolution of the camera stream to the given values, 

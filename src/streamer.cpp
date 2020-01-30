@@ -270,7 +270,7 @@ void Streamer::dsListener() {
 		socklen_t clientAddrLen = sizeof(clientAddr);
 		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
 		if (clientFd < 0) {
-			perror("accept");
+			perror("accept (gstreamer)");
 			continue;
 		}
 
@@ -390,7 +390,7 @@ bool Streamer::checkFramebufferReadiness(){
 	
 	for(unsigned int i=0;i<cameraDevs.size();i++){
 		// if there is no new frame from the camera, but the camera is not dead, return false
-		if(!readyState[i] && time - cameraReaders[i]->last_update < std::chrono::milliseconds(45)){
+		if(!readyState[i] && time - cameraReaders[i]->getLastUpdate() < std::chrono::milliseconds(45)){
 			return false;
 		}
 	}

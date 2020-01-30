@@ -21,45 +21,34 @@ struct resolution {
 // Reads video from a camera
 class VideoReader {
 
-protected:
+private: //These are internal and should not be mucked about with.
 	int camfd;
 	void* currentBuffer;
 	std::vector<void*> buffers;
 	struct v4l2_buffer bufferinfo; 
 	struct v4l2_requestbuffers bufrequest; // Not modified outside of openReader()
-
 	bool hasFirstFrame = false;
-
+protected: //Should not be directly called. (ThreadedVideoReader uses these)
 	void setExposureVals(bool isAuto, int exposure);
-
 	void openReader();
 	bool tryOpenReader();
 	void closeReader();
-
+	int width, height; // size of the video
+	void queryResolutions(); //Find (and cache in VideoReader::resolutions!) what resolutions our v4l2 device supports.
+	std::vector<resolution> resolutions; //Front is also discrete, back stepwise! This is not obvious.
 public:
-	// size of the video
-	int width, height;
-	std::string deviceFile;
-
+	void reset(); //Actually resets the camera. (Should this be public? This should probably not be called willy-nilly, but it's useful.)
+	const std::string deviceFile;
 	VideoReader(int width, int height, const char* file);
 	virtual ~VideoReader();
-
-	// Get the most-recently-grabbed frame in an opencv Mat.
-	// The data is not copied.
-	cv::Mat getMat();
-
-	// Grab the next frame from the camera. 
-    bool grabFrame();
+	cv::Mat getMat(); // Get the most-recently-grabbed frame in an opencv Mat. The data is not copied.
+    bool grabFrame(); // Grab the next frame from the camera.
 
 	// Turns off auto-exposure (on by default) and sets the exposure manually. 
 	// value is a camera-specific integer. 50 is "kinda dark" for our cameras.
 	void setExposure(int value) { setExposureVals(false, value); }
 	// Turns on auto-exposure.
 	void setAutoExposure() { setExposureVals(true, 50); }
-
-	void queryResolutions();
-	std::vector<resolution> resolutions; //Front is also discrete, back stepwise! This is not obvious.
-
 	class NotInitializedException : public std::exception {};
 };
 
@@ -67,22 +56,19 @@ public:
 class ThreadedVideoReader : public VideoReader {
 public:
 	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
-	bool grabFrame();
-	std::function<void(void)> newFrameCallback;
-	std::chrono::steady_clock::time_point last_update;
-	volatile bool hasNewFrame = false;
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
 	int setResolution(unsigned int width, unsigned int height);
-	void reset(); //Actually resets the camera. 
+	void reset(); //Wrapper for VideoReader reset(). (Should this be public? This should probably not be called willy-nilly, but it's useful.)
+	const std::chrono::steady_clock::time_point getLastUpdate();
 private:
+	bool grabFrame(); //Thread-safe wrapper for VideoReader::grabFrame()
+	std::chrono::steady_clock::time_point last_update;
+	std::function<void(void)> newFrameCallback; //Callback function called whenever we succesfully get a new frame.
 	std::chrono::steady_clock timeout_clock;
-
 	void resetterMonitor(); //Monitors to see if camera should be reset, calls reset() if it should be so.
-	// Only reset the camera if it's been dead for over this amount of time.
-	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 
+	static constexpr std::chrono::steady_clock::duration ioctl_timeout = std::chrono::milliseconds(5000); 	// Auto-reset timeout.
 	std::mutex resetLock;
 	std::thread resetTimeoutThread, mainLoopThread; //Keep ahold of the thread handles
-	
 };
 
 
