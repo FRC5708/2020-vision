@@ -79,28 +79,33 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	gstInstances.push_back({ pid, strCommand });
 }
 
-// Finds a video device whose name contains cmp
-vector<string> getVideoDeviceWithString(string cmp) {
+vector<string> getOutputsFromCommand(const char * cmd) {
 
-	FILE* videos = popen(("for I in /sys/class/video4linux/*; do if grep -q '" 
-	+ cmp + "' $I/name; then basename $I; fi; done").c_str(), "r");
+	FILE* cmdStream = popen(cmd, "r");
 
-	vector<string> devnames;
+	vector<string> names;
 	char output[1035];
 	
-	while (fgets(output, sizeof(output), videos) != NULL) {
+	while (fgets(output, sizeof(output), cmdStream) != NULL) {
 		// videoX
 		if (strlen(output) >= 6) {
-			devnames.push_back(output);
+			names.push_back(output);
 			// remove newlines
-			devnames.back().erase(std::remove(devnames.back().begin(), devnames.back().end(), '\n'), devnames.back().end());
-			// BECAUSE THERE'S TWO VIDEO DEVICES PER CAMERA???
-			break;
+			names.back().erase(std::remove(names.back().begin(), names.back().end(), '\n'), names.back().end());
 		}
 	}
-	
-	pclose(videos);
+	pclose(cmdStream);
+	return names;
+}
+// Finds a video device whose name contains cmp
+vector<string> getVideoDevicesWithString(string cmp) {
 
+	return getOutputsFromCommand(("for I in /dev/v4l/by-id/*; do if basename $I | grep -Fq '" 
+	+ cmp + "' && basename $I | grep -Fq index0; then realpath $I; fi; done").c_str());
+}
+vector<string> getLoopbackDevices() {
+	vector<string> devnames = getOutputsFromCommand("for I in /sys/class/video4linux/*; do if grep -q Dummy $I/name; then basename $I; fi; done");
+	
 	for (auto i = devnames.begin(); i < devnames.end(); ++i) {
 		*i = "/dev/" + *i;
 	}
@@ -112,12 +117,12 @@ vector<string> getVideoDeviceWithString(string cmp) {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"920", "C525", "C615"
+	"C920", "C525", "C615"
 };
 
 void Streamer::start() {
 	
-	vector<string> loopbackDevList = getVideoDeviceWithString("Dummy");
+	vector<string> loopbackDevList = getLoopbackDevices();
 	if (loopbackDevList.empty()) {
 		std::cerr << "v4l2loopback device not found" << std::endl;
 		exit(1);
@@ -129,7 +134,7 @@ void Streamer::start() {
 
 
 	for (auto i = cameraNames.begin(); i < cameraNames.end(); ++i) {
-		vector<string> namedCameras = getVideoDeviceWithString(*i);
+		vector<string> namedCameras = getVideoDevicesWithString(*i);
 		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
 	}
 	
