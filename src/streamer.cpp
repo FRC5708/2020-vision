@@ -534,6 +534,13 @@ string Streamer::parseControlMessage(char * message){
 
 }
 string Streamer::controlMessage(string camera_string, string command){
+	/*TODO: implement
+	**     if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
+			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
+			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
+			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
+	** from obsolete function in main
+	*/		
 
 	std::stringstream status=std::stringstream("");
 	int cam_no;
@@ -547,7 +554,7 @@ string Streamer::controlMessage(string camera_string, string command){
 	}
 
 	//Resolution command
-	if(command.substr(0,10).compare("resolution")==0){
+	if(false/*command.substr(0,10).compare("resolution")==0*/){//Not implemented yet! Currently attempting to change video resolutions *horrifically* crashes the program.
 		std::stringstream toParse=std::stringstream(command);
 		string buffer;
 		toParse >> buffer; //Dispose of the command name
