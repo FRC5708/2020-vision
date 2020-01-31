@@ -299,8 +299,7 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
-
-	ControlSocket();//Obsolete, should be removed and functionality moved into ControlPacketReceiver.
-
+	ControlPacketReceiver receiver=ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
+	ControlSocket();//Obsolete, should be removed and functionality moved into ControlPacketReceiver. //Blocks main thread!
 	return 0;
 }

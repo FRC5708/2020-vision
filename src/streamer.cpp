@@ -554,7 +554,7 @@ string Streamer::controlMessage(string camera_string, string command){
 	}
 
 	//Resolution command
-	if(false/*command.substr(0,10).compare("resolution")==0*/){//Not implemented yet! Currently attempting to change video resolutions *horrifically* crashes the program.
+	if(false/*command.substr(0,10)=="resolution"*/){//Not implemented yet! Currently attempting to change video resolutions *horrifically* crashes the program.
 		std::stringstream toParse=std::stringstream(command);
 		string buffer;
 		toParse >> buffer; //Dispose of the command name
@@ -566,6 +566,9 @@ string Streamer::controlMessage(string camera_string, string command){
 		}
 		int retval = camera->setResolution(width,height);
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
+	}else if(command.substr(0,5)=="reset"){
+		camera->reset();
+		return status.str();
 	}
 	else{
 		status << "-1:Command \"" << command << "\" not implemented yet.";

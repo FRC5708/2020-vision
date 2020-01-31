@@ -327,10 +327,12 @@ void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the 
 	}
 }
 void ThreadedVideoReader::reset(){
+	std::cout << "Camera " << deviceFile << " resetting..." << std::endl;
 	resetLock.lock();
 	VideoReader::reset();
 	last_update = timeout_clock.now();
 	resetLock.unlock();
+	std::cout << "Camera " << deviceFile << " reset." << std::endl;
 
 }
 const std::chrono::steady_clock::time_point ThreadedVideoReader::getLastUpdate(){
