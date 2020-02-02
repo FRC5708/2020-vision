@@ -4,6 +4,7 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <chrono>
+#include <memory>
 
 #include "GripHexFinder.hpp"
 
@@ -293,12 +294,12 @@ void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& 
 
 struct SolvePnpResult {
 	cv::Mat rvec, tvec;
-	double pixError, inchHeight, inchRobotX, inchRobotY;
+	double inchHeight, inchRobotX, inchRobotY;
 	bool valid;
 
-	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, double reprojError,
-	std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
-	rvec(rvec), tvec(tvec), pixError(reprojError) {
+	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, 
+    std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
+	rvec(rvec), tvec(tvec) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
 
 		cv::Mat rotation, translation;
@@ -311,7 +312,7 @@ struct SolvePnpResult {
 		} 
 
 		double computedError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
-		assert(abs(computedError - reprojError) > 0.1);
+		//assert(abs(computedError - reprojError) > 0.1);
 
 		cv::Vec3d angles = getEulerAngles(rvec);
 		
@@ -412,36 +413,39 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	std::vector<cv::Point2f> imagePoints = {
 		trapezoid.topleft, trapezoid.topright, trapezoid.bottomleft, trapezoid.bottomright
 	};
-
+    
+    for(auto p : imagePoints){
+        std::cout << "targetPoint: " << p.x << " " << p.y << std::endl;
+    }
 	cv::Mat rvecs, tvecs, reprojErrors;
-	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
-	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE, cv::noArray(), cv::noArray(), reprojErrors);
+	cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
+	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE);
 
-	SolvePnpResult result1(rvecs.row(0), tvecs.row(0), reprojErrors.at<double>(0), worldPoints, imagePoints);
-	SolvePnpResult result2(rvecs.row(1), tvecs.row(1), reprojErrors.at<double>(1), worldPoints, imagePoints);
+	SolvePnpResult result1(rvecs.row(0), tvecs.row(0), worldPoints, imagePoints);
+	//SolvePnpResult result2(rvecs.row(1), tvecs.row(1), reprojErrors.at<double>(1), worldPoints, imagePoints);
 
 	// solvePnpGeneric sorts results by reprojection error
-	assert(result1.pixError <= result2.pixError);
+	//assert(result1.pixError <= result2.pixError);
 
 	SolvePnpResult* resultUsing = nullptr;
 	
-	std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
-		<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight;
+	//std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
+	//	<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight;
 
 	//double pixMaxError = std::max(3, 
 	//			((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
-	double pixMaxError = 3;
+	//double pixMaxError = 3;
 
-	if (result1.pixError > pixMaxError) return { false, {}};
-	else if (result2.pixError > pixMaxError) resultUsing = &result1;
-	else {
+	//if (result1.pixError > pixMaxError) return { false, {}};
+	//else if (result2.pixError > pixMaxError) resultUsing = &result1;
+	//else {
 
 		// TODO: guess which solution is correct.
 		// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
 		
 		// Temporary solution:
 		resultUsing = &result1;
-	}
+	//}
 	
 	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
@@ -558,32 +562,52 @@ std::vector<cv::Point> doVision(cv::Mat image) {
     int i = 0;
     double largestArea = 0;
     std::vector<cv::Point> largestCont;
+    ContourCorners bestCont;
+    bool foundContour = false;
     for(auto c : conts){
        //filter out contours that don't make sense
         //for now: use the largest contour
 
-        cout << "Contour " << i << " with " << c.size() << " points" << endl;
+        //cout << "Contour " << i << " with " << c.size() << " points" << endl;
         i++;
         double a = cv::contourArea(c);
         if(a > largestArea && c.size() > 4){
+            foundContour = true;
             largestArea = a;
             largestCont.clear();
             
-            ContourCorners simpleCont = getContourCorners(c);
-            largestCont.push_back(simpleCont.topleft);
-            largestCont.push_back(simpleCont.topright);
-            largestCont.push_back(simpleCont.bottomleft);
-            largestCont.push_back(simpleCont.bottomright);
+            bestCont = getContourCorners(c);
             //largestCont.assign(c.begin(), c.end());
         }
     }
+   
+    std::cout << "Image Size: " << image.cols << " " << image.rows << std::endl;
+    if(foundContour){
+        largestCont.push_back(bestCont.topleft);
+        largestCont.push_back(bestCont.topright);
+        largestCont.push_back(bestCont.bottomleft);
+        largestCont.push_back(bestCont.bottomright);
+        
+        std::vector<ProcessPointsResult> targets;        
+        //try { 
+            auto result = processPoints(bestCont, image.cols, image.rows);
+            if(result.success){
+                targets.push_back(result);
+            }
+        /*} catch(const cv::Exception& e){
+            std::cout << "a cv::Exception was thrown" << std::endl; 
+        } */
+    
+        for(auto t : targets){
+            std::cout << "distance: " << t.calcs.distance << std::endl;
+        }
 
-	//auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
-	//auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
+        //auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
+        //auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
 
-	//results1.insert(results1.begin(), results2.begin(), results2.end());
-	//return results1;
-    return largestCont;
+        //results1.insert(results1.begin(), results2.begin(), results2.end());
+        //return results1;
+        return largestCont;
+    }   
 }
-
 

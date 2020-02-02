@@ -313,8 +313,8 @@ void Streamer::dsListener() {
 		// It was planned to draw an overlay over the video feed in the driver station.
 		// This sends the overlay data.
 		cout << "Starting UDP stream..." << endl;
-		if (computer_udp) delete computer_udp;
-		computer_udp = new DataComm(strAddr, "5806");
+		//if (computer_udp) delete computer_udp;
+		//computer_udp = new DataComm(strAddr, "5806");
 
 		handlingLaunchRequest = false;
 	}

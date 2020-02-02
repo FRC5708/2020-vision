@@ -110,7 +110,7 @@ void VisionThread() {
 	nice(5);
 	if (errno != 0) perror("nice");
 
-	DataComm rioComm=DataComm("10.57.8.2", "5808");
+	//DataComm rioComm=DataComm("10.57.8.2", "5808");
 
 	auto lastFrameTime = currentFrameTime;
 	while (true) {
