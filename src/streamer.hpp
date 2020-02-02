@@ -16,6 +16,8 @@
 // Also intercepts the video stream from one camera to feed into vision processing
 class Streamer {	
 	cv::Mat image;
+	char* strAddr;//Ugly, fixme
+	char* bitrate;//Ugly, fixme
 
 
 	pid_t gstreamer_pid=0;
@@ -64,6 +66,7 @@ public:
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
 	int getVisionCameraWidth() { return visionCamera->getWidth(); }
 	int getVisionCameraHeight() { return visionCamera->getHeight(); }
+	void calculateOutputWidth(); //Calculates and updates values of outputWidth, outputHeight
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;

@@ -239,7 +239,7 @@ void VideoReader::reset(){
 	openReader();
 }
 int VideoReader::getWidth(){
-	return this->width;
+	return (int) this->width;
 }
 int VideoReader::getHeight(){
 	return this->height;

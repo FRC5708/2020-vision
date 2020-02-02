@@ -166,7 +166,13 @@ void Streamer::start() {
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
-	
+	calculateOutputWidth();
+	initialized = true;	
+
+	// Start the thread that listens for the signal from the driver station
+	std::thread(&Streamer::dsListener, this).detach();
+}
+void Streamer::calculateOutputWidth(){
 	switch (cameraDevs.size()) {
 	case 1:
 		outputWidth = cameraReaders[0]->getWidth(); outputHeight = cameraReaders[0]->getHeight();
@@ -194,11 +200,6 @@ void Streamer::start() {
 	setupFramebuffer();
 	
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
-
-	initialized = true;	
-
-	// Start the thread that listens for the signal from the driver station
-	std::thread(&Streamer::dsListener, this).detach();
 }
 
 void Streamer::setupFramebuffer() {
@@ -236,7 +237,7 @@ void Streamer::setupFramebuffer() {
 }
 
 void Streamer::dsListener() {
-	
+	//Threaded listener
 	servFd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (servFd < 0) {
 		perror("socket");
@@ -279,6 +280,7 @@ void Streamer::dsListener() {
 		killGstreamerInstance();
  
 		char bitrate[16];
+		this->bitrate=bitrate;
 		ssize_t len = read(clientFd, bitrate, sizeof(bitrate)-1);
 		bitrate[len] = '\0';
 		
@@ -294,19 +296,13 @@ void Streamer::dsListener() {
 		sleep(2);
 
 		char strAddr[INET6_ADDRSTRLEN];
+		this->strAddr=strAddr;
 		getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
 		0,0,NI_NUMERICHOST);
 
 		//vector<string> outputVideoDevs = cameraDevs;
 		//outputVideoDevs[0] = loopbackDev;
 		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
-
-		// It was planned to draw an overlay over the video feed in the driver station.
-		// This sends the overlay data.
-		cout << "Starting UDP stream..." << endl;
-		if (computer_udp) delete computer_udp;
-		computer_udp = new DataComm(strAddr, "5806");
-
 		handlingLaunchRequest = false;
 	}
 }
@@ -554,7 +550,8 @@ string Streamer::controlMessage(string camera_string, string command){
 	}
 
 	//Resolution command
-	if(false/*command.substr(0,10)=="resolution"*/){//Not implemented yet! Currently attempting to change video resolutions *horrifically* crashes the program.
+	if(command.substr(0,10)=="resolution"){
+		frameLock.lock(); //Spooky bad times here.
 		std::stringstream toParse=std::stringstream(command);
 		string buffer;
 		toParse >> buffer; //Dispose of the command name
@@ -566,6 +563,14 @@ string Streamer::controlMessage(string camera_string, string command){
 		}
 		int retval = camera->setResolution(width,height);
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
+		if(retval==0){
+			handlingLaunchRequest=true;
+			killGstreamerInstance();
+			calculateOutputWidth();
+			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
+			handlingLaunchRequest=false;
+		}
+		frameLock.unlock();
 	}else if(command.substr(0,5)=="reset"){
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset();
