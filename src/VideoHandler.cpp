@@ -32,7 +32,8 @@ bool VideoReader::tryOpenReader() {
 		}
 		else return false;
 	}
-
+	//TODO:MOVEME!
+	queryResolutions();
 	struct v4l2_capability cap;
 	if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
 		perror("VIDIOC_QUERYCAP");
@@ -41,13 +42,6 @@ bool VideoReader::tryOpenReader() {
 	if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
 		fprintf(stderr, "The device does not handle single-planar video capture.\n");
 		return false;
-	}
-
-	queryResolutions();
-	for(auto &i : resolutions){
-		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
-			std::cout << "Resolution: " << i.discrete.width << " : " << i.discrete.height << std::endl;
-		}
 	}
 
 	struct v4l2_format format;
@@ -214,6 +208,8 @@ bool VideoReader::grabFrame() {
 }
 /* Get and cache the list of acceptable resolution pair values for the used format. */
 void VideoReader::queryResolutions(){
+	if(hasResolutions) return;
+	hasResolutions=true;
 	v4l2_frmsizeenum capability;
 	capability.index=1;
 	capability.pixel_format=V4L2_PIX_FMT_YUYV;
@@ -223,7 +219,11 @@ void VideoReader::queryResolutions(){
 		else{ std::cout << "Non-discrete type for vl42 resolution. It's (currently) not worth our time to use this." << std::endl;}
 		capability.index++; //Increment the thing.
 	}
-
+	for(auto &i : resolutions){
+		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
+			std::cout << "Resolution: " << i.discrete.width << " : " << i.discrete.height << std::endl;
+		}
+	}
 }
 
 cv::Mat VideoReader::getMat() {

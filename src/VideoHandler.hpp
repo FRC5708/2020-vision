@@ -35,7 +35,9 @@ protected: //Should not be directly called. (ThreadedVideoReader uses these)
 	void closeReader();
 	int width, height; // size of the video
 	void queryResolutions(); //Find (and cache in VideoReader::resolutions!) what resolutions our v4l2 device supports.
-	std::vector<resolution> resolutions; //Front is also discrete, back stepwise! This is not obvious.
+	bool hasResolutions=false; //Kind of jank, but the above function should only get called once. (This is protected, not private in case we want to undo this restriction for some reason)
+	std::vector<resolution> resolutions; //We only save discrete resolutions right now.
+
 public:
 	void reset(); //Actually resets the camera. (Should this be public? This should probably not be called willy-nilly, but it's useful.)
 	const std::string deviceFile;

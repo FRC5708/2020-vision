@@ -567,6 +567,7 @@ string Streamer::controlMessage(string camera_string, string command){
 		int retval = camera->setResolution(width,height);
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
 	}else if(command.substr(0,5)=="reset"){
+		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset();
 		return status.str();
 	}
