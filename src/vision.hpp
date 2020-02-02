@@ -36,7 +36,6 @@ void DrawPoints(std::vector<cv::Point>& toDraw, cv::Mat& drawOn);
 struct VisionTarget {
 	VisionData calcs;
 	VisionDrawPoints drawPoints;
-	cv::Rect left, right;
 };
 
 // The main vision processing function, which processes a single frame.

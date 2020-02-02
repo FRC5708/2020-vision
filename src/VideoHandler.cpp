@@ -244,7 +244,14 @@ void VideoReader::setExposureVals(bool isAuto, int exposure) {
 bool ThreadedVideoReader::grabFrame() {
 	resetLock.lock(); resetLock.unlock(); // If resetting, wait until done
 	bool goodGrab = VideoReader::grabFrame();
-	if (goodGrab) last_update = timeout_clock.now(); // We've successfully grabbed a frame. Reset the timeout.
+	if (goodGrab) { // We've successfully grabbed a frame. Record frame time and reset the timeout.
+		auto now = timeout_clock.now();
+
+		++frameTimeIdx;
+		if (frameTimeIdx >= frameTimeCount) frameTimeIdx = 0;
+		frameTimes[frameTimeIdx] = now;
+		last_update = now; 
+	}
 	return goodGrab;
 }
 ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback)
@@ -265,6 +272,19 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 			}
 		}
 	});
+}
+
+double ThreadedVideoReader::getMeanFrameInterval() {
+	auto now = timeout_clock.now();
+	// A binary search would be more efficient, but whatever
+	double count = 0;
+	int i = frameTimeIdx;
+	while (now - frameTimes[i] < std::chrono::milliseconds(1000)) {
+		--i;
+		++count;
+		if (i < 0) i = frameTimeCount - 1;
+	}
+	return 1.0/count;
 }
 
 void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.

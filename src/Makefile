@@ -1,5 +1,5 @@
 
-COMMON_FLAGS=-Wno-psabi -fopenmp -march=native -mcpu=native -mtune=native
+COMMON_FLAGS=-Wno-psabi -Wno-sign-compare -fopenmp -march=native -mcpu=native -mtune=native
 CXXFLAGS=-g -Wall --std=c++17 -ffast-math $(COMMON_FLAGS) -I/usr/include/opencv4/
 
 
@@ -8,7 +8,7 @@ ODIR=obj
 %.o: %.cpp %.hpp
 	g++ -c -o $@ $< $(CXXFLAGS)
 
-OBJS=main.o RedContourGrip.o Vision.o streamer.o DataComm.o VideoHandler.o GripHexFinder.o
+OBJS=main.o RedContourGrip.o vision.o streamer.o DataComm.o VideoHandler.o GripHexFinder.o
 
 build: $(OBJS)
 	g++ -Wno-psabi $(COMMON_FLAGS) -o ../5708-vision $(OBJS) -lm -ldl `pkg-config --libs opencv4` -pthread
