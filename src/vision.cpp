@@ -72,17 +72,15 @@ struct ProcessPointsResult {
 	VisionDrawPoints drawPoints;
 };
 
-// all the constants
-constexpr double radTapeOrientation = 14.5/180*M_PI;
-constexpr double inchTapesWidth = 2;
-constexpr double inchTapesLength = 5.5;
-constexpr double inchInnerTapesApart = 8;
-const double inchTapesHeight = inchTapesLength*cos(radTapeOrientation) + inchTapesWidth*sin(radTapeOrientation); // from bottom to top of tapes
-const double inchTapeTopsApart = inchInnerTapesApart + 2*inchTapesWidth*cos(radTapeOrientation);
-const double inchTapeBottomsApart = inchInnerTapesApart + 2*inchTapesLength*sin(radTapeOrientation);
-const double inchOuterTapesApart = inchTapeTopsApart + 2*inchTapesLength*sin(radTapeOrientation); // from outermost edge
-const double inchHatchTapesAboveGround = 2*12+7.5 - inchTapesHeight;
-const double inchPortTapesAboveGround = 3*12+3.125 - inchTapesHeight;
+// All the constants
+
+constexpr double inchTapesHeightAboveGround = 6*12 + 9 + 1/4;
+constexpr double inchTapesWidthTop = 3*12 + 3 + 1/4;
+constexpr double inchSideTapesLength = 1*12 + 7 + 5/8;
+constexpr double inchTapesHeight = 1*12 + 5;
+
+const double inchTapesWidthBottom = inchTapesWidthTop
+ - 2*sqrt(pow(inchSideTapesLength, 2) - pow(inchTapesHeight, 2));
 
 // For reference: old cameras' FOV is 69°, new camera is 78°
 
@@ -336,7 +334,7 @@ SolvePnpResult prevResult;
 
 
 ProcessPointsResult processResult(SolvePnpResult* resultUsing, 
-std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv::Point2f lastImagePoint) {
+std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints) {
 
 	auto rsize = resultUsing->rvec.size();
 	auto tsize = resultUsing->tvec.size();
@@ -359,9 +357,9 @@ std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv
 	
 	//double radReferencePitch = fmod((radPitch + 2*M_PI), M_PI); // make positive
 	//if (radReferencePitch > M_PI_2) radReferencePitch = M_PI - radReferencePitch;
-
+	
 	VisionDrawPoints draw;
-	std::copy(imagePoints.begin(), imagePoints.end(), draw.points);
+	/*std::copy(imagePoints.begin(), imagePoints.end(), draw.points);
 	draw.points[7] = lastImagePoint;
 
 	constexpr float CROSSHAIR_LENGTH = 4,
@@ -390,22 +388,14 @@ std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv
 	assert(projPoints.type() == CV_32FC2);
 	std::copy(projPoints.begin<cv::Point2f>(), projPoints.end<cv::Point2f>(), draw.points + 8);
 	
-	if (isImageTesting) showDebugPoints(draw);
+	if (isImageTesting) showDebugPoints(draw);*/
 	
 	prevResult = *resultUsing;
 	return { true, result, draw };
 }
 
-ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
+ProcessPointsResult processPoints(ContourCorners trapezoid,
  int pixImageWidth, int pixImageHeight) {
-	
-	if (verboseMode) {
-		std::cout << "left: ";
-		printContourCorners(left);
-		std::cout << "\nright: ";
-		printContourCorners(right);
-		std::cout << std::endl;
-	}
 
 	// There might be a bug in openCV that would require the focal length to be multiplied by 2.
 	// Test this.
@@ -413,27 +403,14 @@ ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
 	// world coords: (0, 0, 0) at bottom center of tapes
 	// up and right are positive. y-axis is vertical.
 	std::vector<cv::Point3f> worldPoints = {
-		cv::Point3f(-inchOuterTapesApart/2, inchTapesWidth*sin(radTapeOrientation), 0),
-		cv::Point3f(inchOuterTapesApart/2, inchTapesWidth*sin(radTapeOrientation), 0),
-		cv::Point3f(-inchTapeTopsApart/2, inchTapesHeight, 0),
-		cv::Point3f(inchTapeTopsApart/2, inchTapesHeight, 0),
-		cv::Point3f(-inchInnerTapesApart/2, inchTapesLength*cos(radTapeOrientation), 0),
-		cv::Point3f(inchInnerTapesApart/2, inchTapesLength*cos(radTapeOrientation), 0),
-		cv::Point3f(-inchTapeBottomsApart/2, 0, 0),
-		//cv::Point3f(inchTapeBottomsApart/2, 0, 0)
+		cv::Point3f(-inchTapesWidthTop/2, inchTapesHeight, 0),
+		cv::Point3f(inchTapesWidthTop/2, inchTapesHeight, 0),
+		cv::Point3f(-inchTapesWidthBottom/2, 0, 0),
+		cv::Point3f(inchTapesWidthBottom/2, 0, 0),
 	};
 	std::vector<cv::Point2f> imagePoints = {
-		left.bottomleft, right.bottomright, left.topleft, right.topright,
-		left.topright, right.topleft, left.bottomright//, right.bottom
+		trapezoid.topleft, trapezoid.topright, trapezoid.bottomleft, trapezoid.bottomright
 	};
-
-	/*cv::Mat rvec, tvec;
-	bool retval = cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
-	//std::cout << "solvePnP withoutprev retval: " << retval << std::endl;
-	SolvePnpResult resultWithoutPrevious(rvec, tvec, worldPoints, imagePoints);
-
-	SolvePnpResult* resultUsing = nullptr;
-	SolvePnpResult resultWithPrevious;*/
 
 	cv::Mat rvecs, tvecs, reprojErrors;
 	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
@@ -446,35 +423,36 @@ ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
 	assert(result1.pixError <= result2.pixError);
 
 	SolvePnpResult* resultUsing = nullptr;
+	
+	std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
+		<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight;
 
-	double pixMaxError = std::max(3, 
-				((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
-
+	//double pixMaxError = std::max(3, 
+	//			((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
+	double pixMaxError = 3;
 
 	if (result1.pixError > pixMaxError) return { false, {}};
 	else if (result2.pixError > pixMaxError) resultUsing = &result1;
 	else {
 
-		// guess which solution is correct using the height. 
-		// Another idea would be to use the direction the robot moves (from encoders/gyro).
-
-		if (result1.withinHeight() && !result2.withinHeight()) resultUsing = &result1;
-		else if (result2.withinHeight() && !result1.withinHeight()) resultUsing = &result2;
-		else resultUsing = &result1;
+		// TODO: guess which solution is correct.
+		// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
+		
+		// Temporary solution:
+		resultUsing = &result1;
 	}
 	
-	std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
-		<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight
-		<< "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
+	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
 
-	return processResult(resultUsing, worldPoints, imagePoints, right.bottomleft);
+	return processResult(resultUsing, worldPoints, imagePoints);
 }
 
 std::vector<VisionTarget> processContours(
 	std::vector< std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
     std::vector<cv::Rect> rects;
 	std::vector<ContourCorners> contourCorners;
+	std::vector<VisionTarget> results;
 
 	const float minRectWidth = 10; //pixels 
 	const float minRectHeight= 10;
@@ -488,16 +466,29 @@ std::vector<VisionTarget> processContours(
 			}*/
 			ContourCorners corners = getContourCorners(i);
 			if (corners.valid){ 
-                contourCorners.push_back(corners);
 		        cout << "TL: " << corners.topleft.x << " " << corners.topleft.y <<endl;
 		        cout << "TR: " << corners.topright.x << " " << corners.topright.y <<endl;
 		        cout << "BL: " << corners.bottomleft.x<<" "<< corners.bottomleft.y<<endl;
 		        cout << "BR: " << corners.bottomright.x<<" "<<corners.bottomright.y<<endl;
                 cout << endl;
+				
+				try {
+					ProcessPointsResult result = processPoints(
+						corners, imgWidth, imgHeight);
+
+					if (result.success) {
+						results.push_back({ result.calcs, result.drawPoints });
+					}
+				}
+				catch (const cv::Exception& e) {
+					if (isImageTesting) throw;
+					std::cerr << "ProcessPoints threw a cv::Exception: " << e.msg << std::endl;
+				}
             }
         }
 	}
-
+	
+	/*
 	const float rectSizeDifferenceTolerance = 0.5; // fraction of width/height
 	const float rectYDifferenceTolerance = 0.5;
 	const float rectDistanceTolerance = 10; // multiplier of the width of one rectangle, that the whole vision target can be
@@ -505,8 +496,6 @@ std::vector<VisionTarget> processContours(
 	if (verboseMode) for (auto rect : rects) {
 		std::cout << "found rect: x:" << rect.x << ",y:" << rect.y << ",w:" << rect.width << ",h:" << rect.height << std::endl;
 	}
-
-	std::vector<VisionTarget> results;
 	
 	// find rects that are close enough in size and distance
 	for (unsigned int i = 0; i < rects.size(); ++i) {
@@ -536,7 +525,7 @@ std::vector<VisionTarget> processContours(
 				}
 			}
 		}
-	}
+	}*/
 	// lowest distance first
 	std::sort(results.begin(), results.end(), [](VisionTarget a, VisionTarget b) -> bool {
 		return a.calcs.distance < b.calcs.distance;
