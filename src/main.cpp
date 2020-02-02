@@ -205,7 +205,7 @@ void doImageTesting(const char* path) {
 	cout << "image size: " << image.cols << 'x' << image.rows << endl;
 	changeCalibResolution(image.cols, image.rows);
 
-	//std::vector<VisionTarget> te = doVision(image);
+	auto te = doVision(image);
 	cout << "Testing Path: " << path << std::endl;
 	/*for(auto &i:te){
 		auto calc=i.calcs;

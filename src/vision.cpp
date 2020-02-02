@@ -294,12 +294,12 @@ void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& 
 
 struct SolvePnpResult {
 	cv::Mat rvec, tvec;
-	double inchHeight, inchRobotX, inchRobotY;
+	double pixError, inchHeight, inchRobotX, inchRobotY;
 	bool valid;
 
-	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, 
-    std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
-	rvec(rvec), tvec(tvec) {
+	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, double reprojError,
+	std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
+	rvec(rvec), tvec(tvec), pixError(reprojError) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
 
 		cv::Mat rotation, translation;
@@ -312,7 +312,7 @@ struct SolvePnpResult {
 		} 
 
 		double computedError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
-		//assert(abs(computedError - reprojError) > 0.1);
+		assert(abs(computedError - reprojError) > 0.1);
 
 		cv::Vec3d angles = getEulerAngles(rvec);
 		
@@ -413,39 +413,37 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	std::vector<cv::Point2f> imagePoints = {
 		trapezoid.topleft, trapezoid.topright, trapezoid.bottomleft, trapezoid.bottomright
 	};
-    
-    for(auto p : imagePoints){
-        std::cout << "targetPoint: " << p.x << " " << p.y << std::endl;
-    }
-	cv::Mat rvecs, tvecs, reprojErrors;
-	cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
-	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE);
 
-	SolvePnpResult result1(rvecs.row(0), tvecs.row(0), worldPoints, imagePoints);
-	//SolvePnpResult result2(rvecs.row(1), tvecs.row(1), reprojErrors.at<double>(1), worldPoints, imagePoints);
+	std::vector<double> reprojErrors;
+	std::vector<cv::Mat> rvecs, tvecs;
+	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
+	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE, cv::noArray(), cv::noArray(), reprojErrors);
+
+	SolvePnpResult result1(rvecs[0], tvecs[0], reprojErrors.at(0), worldPoints, imagePoints);
+	SolvePnpResult result2(rvecs[1], tvecs[1], reprojErrors.at(1), worldPoints, imagePoints);
 
 	// solvePnpGeneric sorts results by reprojection error
-	//assert(result1.pixError <= result2.pixError);
+	assert(result1.pixError <= result2.pixError);
 
 	SolvePnpResult* resultUsing = nullptr;
 	
-	//std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
-	//	<< "result2: err:" << result2.pixError << " height:" << result2.inchHeight;
+	std::cout << "result1: err:" << result1.pixError << " height:" << result1.inchHeight
+		<< " result2: err:" << result2.pixError << " height:" << result2.inchHeight << std::endl;
 
 	//double pixMaxError = std::max(3, 
 	//			((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
-	//double pixMaxError = 3;
+	double pixMaxError = 3;
 
-	//if (result1.pixError > pixMaxError) return { false, {}};
-	//else if (result2.pixError > pixMaxError) resultUsing = &result1;
-	//else {
+	if (result1.pixError > pixMaxError) return { false, {}};
+	else if (result2.pixError > pixMaxError) resultUsing = &result1;
+	else {
 
 		// TODO: guess which solution is correct.
 		// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
 		
 		// Temporary solution:
 		resultUsing = &result1;
-	//}
+	}
 	
 	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
@@ -453,7 +451,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	return processResult(resultUsing, worldPoints, imagePoints);
 }
 
-std::vector<VisionTarget> processContours(
+/*std::vector<VisionTarget> processContours(
 	std::vector< std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
     std::vector<cv::Rect> rects;
 	std::vector<ContourCorners> contourCorners;
@@ -466,9 +464,9 @@ std::vector<VisionTarget> processContours(
 		cv::Rect rect = cv::boundingRect(i);
 		if (rect.width >= minRectWidth && rect.height >= minRectHeight) {
 			rects.push_back(rect);
-			/*if (verboseMode) {
-				std::cout << "contour: " <<
-			}*/
+			//if (verboseMode) {
+			//	std::cout << "contour: " <<
+			//}
 			ContourCorners corners = getContourCorners(i);
 			if (corners.valid){ 
 		        cout << "TL: " << corners.topleft.x << " " << corners.topleft.y <<endl;
@@ -530,14 +528,14 @@ std::vector<VisionTarget> processContours(
 				}
 			}
 		}
-	}*/
+	}
 	// lowest distance first
 	std::sort(results.begin(), results.end(), [](VisionTarget a, VisionTarget b) -> bool {
 		return a.calcs.distance < b.calcs.distance;
 	});
 	
 	return results;
-}
+}*/
 
 std::vector<cv::Point> doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
