@@ -275,16 +275,9 @@ void Streamer::dsListener() {
 
 		// At this point, a connection has been recieved from the driver station.
 		// gStreamer will now be set up to stream to the driver station.
-
 		handlingLaunchRequest = true;
+		killGstreamerInstance();
  
-		cout << "killing previous instance ..." << endl;
-		if(gstreamer_pid!=0){//Make sure we actually have a previous instance ...
-			if (kill(gstreamer_pid, SIGTERM) == -1) {
-				perror("kill");
-			}
-			waitpid(gstreamer_pid, nullptr, 0);
-		}
 		char bitrate[16];
 		ssize_t len = read(clientFd, bitrate, sizeof(bitrate)-1);
 		bitrate[len] = '\0';
@@ -317,7 +310,16 @@ void Streamer::dsListener() {
 		handlingLaunchRequest = false;
 	}
 }
-
+void Streamer::killGstreamerInstance(){
+	cout << "killing previous instance ..." << endl;
+	if(gstreamer_pid!=0){//Make sure we actually have a previous instance ...
+		if (kill(gstreamer_pid, SIGTERM) == -1) {
+			perror("kill");
+		}
+		waitpid(gstreamer_pid, nullptr, 0);
+		gstreamer_pid=0; //We currently have nothing going.
+	}
+}
 // Forwards everything in fromFd to toFd, with prefix before every line
 void interceptFile(int fromFd, int toFd, string prefix) {
 	std::thread([=]() {

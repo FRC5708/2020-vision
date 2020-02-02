@@ -56,6 +56,7 @@ class Streamer {
 	std::vector<int> cameraFrameCounts;
 	
 	void setupFramebuffer();
+	void killGstreamerInstance();//Kill the previous instance of gsteamer, that we may start anew.
 
 
 public:
