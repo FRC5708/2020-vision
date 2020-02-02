@@ -47,11 +47,10 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 }
 
 void Streamer::handleCrash(pid_t pid) {
-	if (!handlingLaunchRequest) {
-		for (auto i : gstInstances) {
-			if (i.pid == pid) {
-				runCommandAsync(i.command, servFd);
-			}
+	//TODO: Handle other things than gstreamer crashing?
+	if(pid==gstreamer_pid){
+		if(!handlingLaunchRequest){
+			runCommandAsync(gstreamer_command, servFd);
 		}
 	}
 }
@@ -75,7 +74,8 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	
 	pid_t pid = runCommandAsync(strCommand, servFd);
 
-	gstInstances.push_back({ pid, strCommand });
+	gstreamer_pid=pid;
+	gstreamer_command=strCommand;
 }
 
 // Finds a video device whose name contains cmp
@@ -277,16 +277,14 @@ void Streamer::dsListener() {
 		// gStreamer will now be set up to stream to the driver station.
 
 		handlingLaunchRequest = true;
-
-		for (auto i : gstInstances) {
-			
-			cout << "killing previous instance: " << i.pid << "   " << endl;
-			if (kill(i.pid, SIGTERM) == -1) {
+ 
+		cout << "killing previous instance ..." << endl;
+		if(gstreamer_pid!=0){//Make sure we actually have a previous instance ...
+			if (kill(gstreamer_pid, SIGTERM) == -1) {
 				perror("kill");
 			}
-			waitpid(i.pid, nullptr, 0);
+			waitpid(gstreamer_pid, nullptr, 0);
 		}
-		
 		char bitrate[16];
 		ssize_t len = read(clientFd, bitrate, sizeof(bitrate)-1);
 		bitrate[len] = '\0';

@@ -17,12 +17,9 @@
 class Streamer {	
 	cv::Mat image;
 
-	// Holds info about one gStreamer process. 
-	struct GstInstance {
-		pid_t pid;
-		std::string command;
-	};
-	std::vector<GstInstance> gstInstances;
+
+	pid_t gstreamer_pid=0;
+	std::string gstreamer_command; //Do we actually need/want this to be saved?
 	
 	volatile bool handlingLaunchRequest = false;
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);

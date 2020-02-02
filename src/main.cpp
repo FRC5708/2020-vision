@@ -143,7 +143,7 @@ void setDefaultCalibParams() { //Is this accurate?
 	//constexpr double radFOV = (69.0/180.0)*M_PI;
 	constexpr double radFOV = (78.0/180.0)*M_PI;
 	const double pixFocalLength = tan((M_PI_2) - radFOV/2) * sqrt(pow(calib::width, 2) + pow(calib::height, 2))/2; // pixels. Estimated from the camera's FOV spec.
-	
+
 	static double cameraMatrixVals[] {
 		pixFocalLength, 0, ((double) calib::width)/2,
 		0, pixFocalLength, ((double) calib::height)/2,
