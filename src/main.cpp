@@ -32,7 +32,7 @@ using std::cout; using std::cerr; using std::endl; using std::string;
 
 
 // when false, drastically slows down vision processing
-volatile bool visionEnabled = false;
+volatile bool visionEnabled = true;
 
 //std::vector<VisionTarget> lastResults;
 std::vector<cv::Point> lastResults;
@@ -308,6 +308,8 @@ int main(int argc, char** argv) {
 	
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.width, streamer.height);
+    
+    visionEnabled = true;
 
 	std::thread controlSockThread(&ControlSocket);
 	std::thread visThread(&VisionThread);

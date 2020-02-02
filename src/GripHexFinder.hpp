@@ -23,11 +23,9 @@ class GripHexFinder {
 	private:
 		cv::Mat hslThresholdOutput;
 		std::vector<std::vector<cv::Point> > findContoursOutput;
-		std::vector<std::vector<cv::Point> > filterContoursOutput;
 		std::vector<std::vector<cv::Point> > convexHullsOutput;
 		void hslThreshold(cv::Mat &, double [], double [], double [], cv::Mat &);
 		void findContours(cv::Mat &, bool , std::vector<std::vector<cv::Point> > &);
-		void filterContours(std::vector<std::vector<cv::Point> > &, double , double , double , double , double , double , double [], double , double , double , double , std::vector<std::vector<cv::Point> > &);
 		void convexHulls(std::vector<std::vector<cv::Point> > &, std::vector<std::vector<cv::Point> > &);
 
 	public:
@@ -35,7 +33,6 @@ class GripHexFinder {
 		void Process(cv::Mat& source0);
 		cv::Mat* GetHslThresholdOutput();
 		std::vector<std::vector<cv::Point> >* GetFindContoursOutput();
-		std::vector<std::vector<cv::Point> >* GetFilterContoursOutput();
 		std::vector<std::vector<cv::Point> >* GetConvexHullsOutput();
 };
 

@@ -3,6 +3,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
+#include <chrono>
 
 #include "GripHexFinder.hpp"
 
@@ -554,28 +555,39 @@ std::vector<cv::Point> doVision(cv::Mat image) {
     grip::GripHexFinder finder;
     finder.Process(image);
 
-    std::vector<cv::Point> results;
     //convert lines to contours
+    
+    auto start = std::chrono::system_clock::now();
     std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
+    auto end = std::chrono::system_clock::now();
+    
+    std::chrono::duration<double> elapsed_seconds = end-start;
+    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    std::cout << "finished computation at " << std::ctime(&end_time)
+              << "elapsed time: " << elapsed_seconds.count() << "s\n";
+
     cout << "Found " << conts.size() << " contours" << std::endl; 
     int i = 0;
+    double largestArea = 0;
+    std::vector<cv::Point> largestCont;
     for(auto c : conts){
-        //filter out contours that don't make sense
-
+       //filter out contours that don't make sense
+        //for now: use the largest contour
 
         cout << "Contour " << i << " with " << c.size() << " points" << endl;
         i++;
-        ContourCorners simpleCont = getContourCorners(c);
-        printContourCorners(simpleCont);
-        results.push_back(simpleCont.topleft);
-        results.push_back(simpleCont.topright);
-        results.push_back(simpleCont.bottomleft);
-        results.push_back(simpleCont.bottomright);
-        /*DrawPoints(sCont);*/
-        /*for(auto p : simplifiedCont){
-            cout << "   ";
-            cout << p.x << " " << p.y << endl; 
-        }*/
+        double a = cv::contourArea(c);
+        if(a > largestArea && c.size() > 4){
+            largestArea = a;
+            largestCont.clear();
+            
+            ContourCorners simpleCont = getContourCorners(c);
+            largestCont.push_back(simpleCont.topleft);
+            largestCont.push_back(simpleCont.topright);
+            largestCont.push_back(simpleCont.bottomleft);
+            largestCont.push_back(simpleCont.bottomright);
+            //largestCont.assign(c.begin(), c.end());
+        }
     }
 
 	//auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
@@ -583,7 +595,7 @@ std::vector<cv::Point> doVision(cv::Mat image) {
 
 	//results1.insert(results1.begin(), results2.begin(), results2.end());
 	//return results1;
-    return results;
+    return largestCont;
 }
 
 
