@@ -83,6 +83,7 @@ void ControlSocket() { //This is obsolete and should be removed, in favour of Co
 		std::cerr << "could not connect to control socket" << std::endl;
 		return;
 	}
+	fcntl(sockfd, F_SETFD, fcntl(sockfd, F_GETFD) | FD_CLOEXEC);
 
 	while (true) {
 		char buf[66537];

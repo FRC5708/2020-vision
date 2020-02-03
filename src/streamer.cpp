@@ -50,6 +50,7 @@ void Streamer::handleCrash(pid_t pid) {
 	//TODO: Handle other things than gstreamer crashing? - Like what? Gstreamer is our only child process...
 	if(pid==gstreamer_pid){
 		if(!handlingLaunchRequest){
+            std::cout << "Realunching gStreamer after crash..." << std::endl;
 			runCommandAsync(gstreamer_command, servFd);
 		}
 	}
@@ -78,28 +79,33 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	gstreamer_command=strCommand;
 }
 
-// Finds a video device whose name contains cmp
-vector<string> getVideoDeviceWithString(string cmp) {
+vector<string> getOutputsFromCommand(const char * cmd) {
 
-	FILE* videos = popen(("for I in /sys/class/video4linux/*; do if grep -q '" 
-	+ cmp + "' $I/name; then basename $I; fi; done").c_str(), "r");
+	FILE* cmdStream = popen(cmd, "r");
 
-	vector<string> devnames;
+	vector<string> names;
 	char output[1035];
 	
-	while (fgets(output, sizeof(output), videos) != NULL) {
+	while (fgets(output, sizeof(output), cmdStream) != NULL) {
 		// videoX
 		if (strlen(output) >= 6) {
-			devnames.push_back(output);
+			names.push_back(output);
 			// remove newlines
-			devnames.back().erase(std::remove(devnames.back().begin(), devnames.back().end(), '\n'), devnames.back().end());
-			// BECAUSE THERE'S TWO VIDEO DEVICES PER CAMERA???
-			break;
+			names.back().erase(std::remove(names.back().begin(), names.back().end(), '\n'), names.back().end());
 		}
 	}
-	
-	pclose(videos);
+	pclose(cmdStream);
+	return names;
+}
+// Finds a video device whose name contains cmp
+vector<string> getVideoDevicesWithString(string cmp) {
 
+	return getOutputsFromCommand(("for I in /dev/v4l/by-id/*; do if basename $I | grep -Fq '" 
+	+ cmp + "' && basename $I | grep -Fq index0; then realpath $I; fi; done").c_str());
+}
+vector<string> getLoopbackDevices() {
+	vector<string> devnames = getOutputsFromCommand("for I in /sys/class/video4linux/*; do if grep -q Dummy $I/name; then basename $I; fi; done");
+	
 	for (auto i = devnames.begin(); i < devnames.end(); ++i) {
 		*i = "/dev/" + *i;
 	}
@@ -111,12 +117,12 @@ vector<string> getVideoDeviceWithString(string cmp) {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"920", "C525", "C615"
+	"C920", "C525", "C615"
 };
 
 void Streamer::start() {
 	
-	vector<string> loopbackDevList = getVideoDeviceWithString("Dummy");
+	vector<string> loopbackDevList = getLoopbackDevices();
 	if (loopbackDevList.empty()) {
 		std::cerr << "v4l2loopback device not found" << std::endl;
 		exit(1);
@@ -128,7 +134,7 @@ void Streamer::start() {
 
 
 	for (auto i = cameraNames.begin(); i < cameraNames.end(); ++i) {
-		vector<string> namedCameras = getVideoDeviceWithString(*i);
+		vector<string> namedCameras = getVideoDevicesWithString(*i);
 		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
 	}
 	
@@ -246,6 +252,7 @@ void Streamer::dsListener() {
 		perror("socket");
 		return;
 	}
+	fcntl(servFd, F_SETFD, fcntl(servFd, F_GETFD) | FD_CLOEXEC);
 	
 	int flag = 1;
 	if (setsockopt(servFd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)) == -1) {
@@ -402,7 +409,7 @@ bool Streamer::checkFramebufferReadiness(){
 	vector<bool> synchroCameras(cameraDevs.size(), false);
 	for(unsigned int i=0;i<cameraDevs.size();i++) {
 		synchroCameras[i] = 
-		frameTimes[i] / bestFrameTime > 0.85 // If the camera is fast
+		bestFrameTime / frameTimes[i] > 0.85 // If the camera is fast
 		 // and it's not dead
 		 && time - cameraReaders[i]->getLastUpdate() < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
 		 
@@ -411,7 +418,7 @@ bool Streamer::checkFramebufferReadiness(){
 	bool hasSynchro = false;
 	for(unsigned int i=0;i<cameraDevs.size();i++) hasSynchro |= synchroCameras[i];
 	if (!hasSynchro) for(unsigned int i=0;i<cameraDevs.size();i++) {
-		synchroCameras[i] = frameTimes[i] / bestFrameTime > 0.85;
+		synchroCameras[i] = bestFrameTime / frameTimes[i] > 0.85;
 	}
 	
 	for(unsigned int i=0;i<cameraDevs.size();i++) {
