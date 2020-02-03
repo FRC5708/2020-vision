@@ -63,6 +63,7 @@ void DataComm::setupSocket() {
         printf("could not resolve or connect to: %s\n", client_name);
         return;
     }
+    fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
 }
 DataComm::DataComm(const char* client_name, const char* port="5808") : client_name(client_name) {
     setupSocket();
