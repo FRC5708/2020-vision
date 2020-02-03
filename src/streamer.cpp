@@ -47,7 +47,7 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 }
 
 void Streamer::handleCrash(pid_t pid) {
-	//TODO: Handle other things than gstreamer crashing?
+	//TODO: Handle other things than gstreamer crashing? - Like what? Gstreamer is our only child process...
 	if(pid==gstreamer_pid){
 		if(!handlingLaunchRequest){
 			runCommandAsync(gstreamer_command, servFd);
@@ -172,6 +172,9 @@ void Streamer::start() {
 	// Start the thread that listens for the signal from the driver station
 	std::thread(&Streamer::dsListener, this).detach();
 }
+
+// This calls openWriter... A function named calculateXXX shouldn't have these side-effects.
+// Also it might need to be closed first.
 void Streamer::calculateOutputWidth(){
 	switch (cameraDevs.size()) {
 	case 1:
@@ -565,6 +568,7 @@ string Streamer::controlMessage(string camera_string, string command){
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
 		if(retval==0){
 			handlingLaunchRequest=true;
+			// SIGCHLD will be recieved and it will be immediately restarted. Set handlingLaunchRequest first.
 			killGstreamerInstance();
 			calculateOutputWidth();
 			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);

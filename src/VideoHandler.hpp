@@ -12,6 +12,7 @@
 
 
 //Magic struct.
+// It appears stepwise isn't used at all? Why does this exist?
 struct resolution {
 	int type;
 	v4l2_frmsize_discrete discrete; //Only one of these two is actually going to be initialized. FSCK unions.

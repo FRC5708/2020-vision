@@ -218,6 +218,7 @@ void VideoReader::queryResolutions(){
 		/*else{ if(capability.type==V4L2_FRMSIZE_TYPE_STEPWISE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_STEPWISE,.stepwise=capability.stepwise});*/
 		else{ std::cout << "Non-discrete type for vl42 resolution. It's (currently) not worth our time to use this." << std::endl;}
 		capability.index++; //Increment the thing.
+		// ^ the most unhelpful comment ever
 	}
 	for(auto &i : resolutions){
 		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
@@ -239,7 +240,7 @@ void VideoReader::reset(){
 	openReader();
 }
 int VideoReader::getWidth(){
-	return (int) this->width;
+	return (int) this->width; // I want to know the story behind this cast
 }
 int VideoReader::getHeight(){
 	return this->height;

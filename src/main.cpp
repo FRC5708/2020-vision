@@ -105,7 +105,7 @@ void ControlSocket() { //This is obsolete and should be removed, in favour of Co
 	}
 }
 
-void VisionThread() { //This should almost-certainly be refactored out into its own thing. (vision.cpp, maybe?)
+void VisionThread() { //This should almost-certainly be refactored out into its own thing. (vision.cpp, maybe?) - NO. Coordination between camera and vision is what main.cpp is for.
 	// give this thread a lower priority
 	errno = 0;
 	nice(5);
@@ -291,7 +291,7 @@ int main(int argc, char** argv) {
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART | SA_NOCLDSTOP | SA_SIGINFO;
 	sa.sa_sigaction = &chldHandler;
-	if (sigaction(SIGCHLD, &sa, 0) == -1) {//Note: we have a *lot* of different threads running now. What if something other than gstreamer crashes?
+	if (sigaction(SIGCHLD, &sa, 0) == -1) {//Note: we have a *lot* of different threads running now. What if something other than gstreamer crashes? - The handler checks the crashed pid to make sure it's gstreamer, and threads within the same process don't send SIGCHLD
 		perror("sigaction");
 		exit(1);
 	}
