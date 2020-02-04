@@ -19,6 +19,7 @@ struct VisionData {
 	double robotAngle;
 };
 
+// TODO: make this an actual struct this year
 struct VisionDrawPoints {
 	// First, 8 points on corners of vision targets.
 	// Then those points, reprojected using the target location.

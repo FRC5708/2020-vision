@@ -292,18 +292,25 @@ void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& 
 	cameraTranslationVector = -R.t()*translation_vector;
 }
 
+// Gets useful values from the output of solvePnP. 
+// https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html (old documentation) and https://docs.opencv.org/4.2.0/d9/d0c/group__calib3d.html#ga549c2075fac14829ff4a58bc931c033d (newer, but slightly worse documentation) go into some (insufficent) detail about solvePnP. 
 struct SolvePnpResult {
+	// rvec and tvec are returned from solvePnP. (Go read the above documents and stare at the diagram if you haven't already.) They represent a transform between two coordinate spaces; camera space, and world space. Camera space's origin is at the camera, its x-axis is left, its y-axis is down, and z-axis is outwards. World space is whatever we define it to be in the worldPoints parameter passed to solvePnP.
+	// tvec is a vector in camera space that represents the translation from the origin of camera space to the origin of world space. From there, rvec somehow tells us what direction the axes of world coordinate space points.
 	cv::Mat rvec, tvec;
-	double pixError, inchHeight, inchRobotX, inchRobotY;
+	
+	double pixError;
+	
+	// X, Y, and height are the robot's position in a coordinate system oriented so that the X axis is on the plane of the targets and the Y axis points out of the targets. X is right postive, Y is forwards positive, and height is up positive. the breakdown into X, Y, and height is often inaccurate. TotalDist is usually accurate.
+	double inchTotalDist, inchHeight, inchRobotX, inchRobotY;
+	// TODO: robotAngle is the angle on the floor; i.e. the angle that the robot would have to turn to directly face the target. It is determined using the known value of the height between the camera and the targets. It is positive if the robot would have to turn counterclockwise to face the targets. 
+	double radRobotAngle;
 	bool valid;
 
 	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, double reprojError,
 	std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
 	rvec(rvec), tvec(tvec), pixError(reprojError) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
-
-		cv::Mat rotation, translation;
-		invertPose(rvec, tvec, rotation, translation);
 
 		if (matContainsNan(rvec) || matContainsNan (tvec)) {
 			std::cout << "solvePnP returned NaN!\n";
@@ -313,28 +320,26 @@ struct SolvePnpResult {
 
 		double computedError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
 		assert(abs(computedError - reprojError) > 0.1);
-
-		cv::Vec3d angles = getEulerAngles(rvec);
 		
-		// x is right postive, y is forwards positive
+		// Get the translation in the world coordinate space.
+		cv::Mat rotation, translation;
+		invertPose(rvec, tvec, rotation, translation);
+		
 		inchRobotX = translation.at<double>(0);
 		inchRobotY = translation.at<double>(2);
-		inchHeight = -translation.at<double>(1);	
+		inchHeight = -translation.at<double>(1);
+		
+		inchTotalDist = sqrt(pow(tvec.at<double>(0), 2) + pow(tvec.at<double>(1), 2) + pow(tvec.at<double>(2), 2));
 
 		valid = true;	
-	}
-
-	bool withinHeight() {
-		return inchHeight > 3 && inchHeight < 8;
 	}
 
 	SolvePnpResult() {
 		valid = false;
 	}
 };
-SolvePnpResult prevResult;
 
-
+// Turn a SolvePnpResult into the data that's sent to the roboRio, as well as the data stored to draw on the target.
 ProcessPointsResult processResult(SolvePnpResult* resultUsing, 
 std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints) {
 
@@ -392,7 +397,6 @@ std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints) {
 	
 	if (isImageTesting) showDebugPoints(draw);*/
 	
-	prevResult = *resultUsing;
 	return { true, result, draw };
 }
 
@@ -418,7 +422,8 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	std::vector<cv::Mat> rvecs, tvecs;
 	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
 	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE, cv::noArray(), cv::noArray(), reprojErrors);
-
+	 
+	// SOLVEPNP_IPPE returns up to 2 results.
 	SolvePnpResult result1(rvecs[0], tvecs[0], reprojErrors.at(0), worldPoints, imagePoints);
 	SolvePnpResult result2(rvecs[1], tvecs[1], reprojErrors.at(1), worldPoints, imagePoints);
 
