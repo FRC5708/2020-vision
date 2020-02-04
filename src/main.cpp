@@ -296,7 +296,20 @@ int main(int argc, char** argv) {
 		perror("sigaction");
 		exit(1);
 	}
-	
+	signal(SIGUSR1, [](int){
+		 /* In order to save profiling information to gmon.out, the program *must* exit cleanly. 
+		 ** Since our program will never do that, we are hooking the SIGUSR1 signal into this exit function.
+		 */
+		std::cout << "SIGUSR1 received. Killing..." << std::endl;
+		void (*_mcleanup)(void);
+    	_mcleanup = (void (*)(void))dlsym(RTLD_DEFAULT, "_mcleanup");
+		if (_mcleanup == NULL) fprintf(stderr, "Unable to find gprof exit hook\n");
+   		else {
+			_mcleanup();
+			std::cout << "Succesfully saved profiling data." << std::endl;
+		}
+		exit(0);
+	});
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
