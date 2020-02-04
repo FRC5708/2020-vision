@@ -58,6 +58,7 @@ class Streamer {
 	std::vector<int> cameraFrameCounts;
 	void setupCameras(); //Set up the cameras. (Only called once)
 	void setupFramebuffer();
+	void restartWriter();
 	void killGstreamerInstance();//Kill the previous instance of gsteamer, that we may start anew.
 
 

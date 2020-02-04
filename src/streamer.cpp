@@ -129,7 +129,11 @@ void Streamer::start() {
 	// Start the thread that listens for the signal from the driver station
 	std::thread(&Streamer::dsListener, this).detach();
 }
-
+void Streamer::restartWriter(){
+	videoWriter.closeWriter();
+	std::cout << "Closed Writer" << std::endl;
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
+}
 void Streamer::setupCameras(){
 	if(initialized) return;
 
@@ -578,6 +582,7 @@ string Streamer::controlMessage(string camera_string, string command){
 			// SIGCHLD will be recieved and it will be immediately restarted. Set handlingLaunchRequest first.
 			killGstreamerInstance();
 			calculateOutputWidth();
+			restartWriter(); //Work Please
 			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
 			handlingLaunchRequest=false;
 		}

@@ -387,6 +387,10 @@ void VideoWriter::openWriter(int width, int height, const char* file) {
 		exit(t);
 	}
 }
+void VideoWriter::closeWriter(){
+	std::cout << "Killing VideoWriter: " << v4l2lo << std::endl;
+	close(v4l2lo);
+}
 
 void VideoWriter::writeFrame(cv::Mat& frame) {
 	assert(frame.total() * frame.elemSize() == vidsendsiz);

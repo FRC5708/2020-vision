@@ -93,5 +93,6 @@ class VideoWriter {
 public:
 
 	void openWriter(int width, int height, const char* file);
+	void closeWriter();
     void writeFrame(cv::Mat& frame);
 };
