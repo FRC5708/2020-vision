@@ -121,7 +121,18 @@ vector<string> cameraNames = {
 };
 
 void Streamer::start() {
-	
+	setupCameras();
+	calculateOutputWidth();
+	setupFramebuffer();
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
+	initialized = true;	
+	// Start the thread that listens for the signal from the driver station
+	std::thread(&Streamer::dsListener, this).detach();
+}
+
+void Streamer::setupCameras(){
+	if(initialized) return;
+
 	vector<string> loopbackDevList = getLoopbackDevices();
 	if (loopbackDevList.empty()) {
 		std::cerr << "v4l2loopback device not found" << std::endl;
@@ -172,15 +183,7 @@ void Streamer::start() {
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
-	calculateOutputWidth();
-	initialized = true;	
-
-	// Start the thread that listens for the signal from the driver station
-	std::thread(&Streamer::dsListener, this).detach();
 }
-
-// This calls openWriter... A function named calculateXXX shouldn't have these side-effects.
-// Also it might need to be closed first.
 void Streamer::calculateOutputWidth(){
 	switch (cameraDevs.size()) {
 	case 1:
@@ -206,9 +209,6 @@ void Streamer::calculateOutputWidth(){
 	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
 	correctedWidth = ceil(outputWidth/16.0)*16;
 	correctedHeight = ceil(outputHeight/16.0)*16;
-	setupFramebuffer();
-	
-	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 }
 
 void Streamer::setupFramebuffer() {

@@ -236,11 +236,11 @@ cv::Mat VideoReader::getMat() {
 }   
 void VideoReader::reset(){
 	closeReader();
-	sleep(2); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
+	sleep(4); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
 	openReader();
 }
 int VideoReader::getWidth(){
-	return (int) this->width; // I want to know the story behind this cast
+	return this->width; // I want to know the story behind this cast
 }
 int VideoReader::getHeight(){
 	return this->height;

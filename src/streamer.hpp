@@ -56,7 +56,7 @@ class Streamer {
 	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
 	int frameCount = 0;
 	std::vector<int> cameraFrameCounts;
-	
+	void setupCameras(); //Set up the cameras. (Only called once)
 	void setupFramebuffer();
 	void killGstreamerInstance();//Kill the previous instance of gsteamer, that we may start anew.
 
