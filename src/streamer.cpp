@@ -579,17 +579,21 @@ string Streamer::controlMessage(string camera_string, string command){
 		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
 		if(retval==0){
 			handlingLaunchRequest=true;
-			// SIGCHLD will be recieved and it will be immediately restarted. Set handlingLaunchRequest first.
-			std::cout << "Killing previous gstreamer instance..." << std::endl;
-			killGstreamerInstance();
+			bool relaunchingGstreamer = gstreamer_pid != 0;
+			if (relaunchingGstreamer) {
+				std::cout << "Killing previous gstreamer instance..." << std::endl;
+				killGstreamerInstance();
+			}
 			std::cout << "Calculating modified output width..." << std::endl;
 			calculateOutputWidth();
 			std::cout << "Setting up framebuffer..." << std::endl;
 			setupFramebuffer();
 			std::cout << "Restarting Video Writer..." << std::endl;
 			restartWriter(); //Work Please
-			std::cout << "Restarting new gstreamer stream..." << std::endl;
-			launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
+			if (relaunchingGstreamer) {
+				std::cout << "Restarting new gstreamer stream..." << std::endl;
+				launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
+			}		
 			handlingLaunchRequest=false;
 		}
 		frameLock.unlock();
