@@ -28,11 +28,12 @@ private: //These are internal and should not be mucked about with.
 	std::vector<void*> buffers;
 	struct v4l2_buffer bufferinfo; 
 	struct v4l2_requestbuffers bufrequest; // Not modified outside of openReader()
-	bool hasFirstFrame = false;
 protected: //Should not be directly called. (ThreadedVideoReader uses these)
+	bool hasFirstFrame = false;
 	void setExposureVals(bool isAuto, int exposure);
-	void openReader();
-	bool tryOpenReader();
+	void openReader(bool isClosed = true);
+	bool tryOpenReader(bool isClosed);
+	void stopStreaming();
 	void closeReader();
 	int width, height; // size of the video
 	void queryResolutions(); //Find (and cache in VideoReader::resolutions!) what resolutions our v4l2 device supports.
@@ -40,7 +41,7 @@ protected: //Should not be directly called. (ThreadedVideoReader uses these)
 	std::vector<resolution> resolutions; //We only save discrete resolutions right now.
 
 public:
-	void reset(); //Actually resets the camera. (Should this be public? This should probably not be called willy-nilly, but it's useful.)
+	virtual void reset(bool hard = false); //Actually resets the camera. (Should this be public? This should probably not be called willy-nilly, but it's useful.)
 	const std::string deviceFile;
 	VideoReader(int width, int height, const char* file);
 	virtual ~VideoReader();
@@ -62,7 +63,7 @@ public:
 	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
 	int setResolution(unsigned int width, unsigned int height);
-	void reset(); //Wrapper for VideoReader reset(). (Should this be public? This should probably not be called willy-nilly, but it's useful.)
+	void reset(bool hard = false) override; //Wrapper for VideoReader reset(). (Should this be public? This should probably not be called willy-nilly, but it's useful.)
 	const std::chrono::steady_clock::time_point getLastUpdate();
 
 	// Get a rolling average of the frame interval from the past second, which includes the time since the most recent frame

@@ -20,28 +20,30 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
 VideoReader::VideoReader(int width, int height, const char* file) : deviceFile(std::string(file)){
 	this->width = width; this->height = height;
 }
-bool VideoReader::tryOpenReader() {
+bool VideoReader::tryOpenReader(bool isClosed) {
 
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
-	while ((camfd = open(deviceFile.c_str(), O_RDWR|O_CLOEXEC)) < 0) {
-		perror("open");
-		if (errno == EBUSY) {
-			sleep(1);
+	if (isClosed) {
+		while ((camfd = open(deviceFile.c_str(), O_RDWR|O_CLOEXEC)) < 0) {
+			perror("open");
+			if (errno == EBUSY) {
+				sleep(1);
+			}
+			else return false;
 		}
-		else return false;
-	}
-	//TODO:MOVEME!
-	queryResolutions();
-	struct v4l2_capability cap;
-	if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
-		perror("VIDIOC_QUERYCAP");
-		return false;
-	}
-	if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
-		fprintf(stderr, "The device does not handle single-planar video capture.\n");
-		return false;
+		//TODO:MOVEME!
+		queryResolutions();
+		struct v4l2_capability cap;
+		if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
+			perror("VIDIOC_QUERYCAP");
+			return false;
+		}
+		if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
+			fprintf(stderr, "The device does not handle single-planar video capture.\n");
+			return false;
+		}
 	}
 
 	struct v4l2_format format;
@@ -140,8 +142,8 @@ bool VideoReader::tryOpenReader() {
 	}
 	return true;
 }
-void VideoReader::openReader() {
-	while (!tryOpenReader()) {
+void VideoReader::openReader(bool isClosed) {
+	while (!tryOpenReader(isClosed)) {
 		std::cerr << "Failed to open " << deviceFile << "! Retrying in 3 seconds..." << std::endl;
 		closeReader();
 		sleep(3);
@@ -149,6 +151,10 @@ void VideoReader::openReader() {
 }
 
 void VideoReader::closeReader() {
+	stopStreaming();
+	if (close(camfd) < 0) perror("close"); //Close the camera fd.
+}
+void VideoReader::stopStreaming() {
 	int type = bufferinfo.type;
 	if (ioctl(camfd, VIDIOC_STREAMOFF, &type) < 0) perror("VIDEOC_STREAMOFF"); //Send the off ioctl.
 
@@ -170,9 +176,7 @@ void VideoReader::closeReader() {
 	if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
 		perror("Deallocating buffers: VIDIOC_REQBUFS");
 	}
-
-	if (close(camfd) < 0) perror("close"); //Close the camera fd.
-
+	
 	hasFirstFrame = false;
 }
 
@@ -234,10 +238,17 @@ cv::Mat VideoReader::getMat() {
 		throw NotInitializedException();
 	}
 }   
-void VideoReader::reset(){
-	closeReader();
-	sleep(4); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
-	openReader();
+void VideoReader::reset(bool hard){
+	//hard = true;
+	if (hard) {
+		closeReader();
+		sleep(4); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
+		openReader(true);
+	}
+	else {
+		stopStreaming();
+		openReader(false);
+	}
 }
 int VideoReader::getWidth(){
 	return this->width; // I want to know the story behind this cast
@@ -321,16 +332,22 @@ double ThreadedVideoReader::getMeanFrameInterval() {
 void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.
 	while (true) {
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
-			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
-			reset();
+			if (hasFirstFrame){
+				std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
+				reset();
+			} 
+			else { // last reset didn't work
+				std::cerr << "Camera " << deviceFile << " still not responding. Hard resetting..." << std::endl;
+				reset(true);
+			}
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Because I'm a janky spinlock
 	}
 }
-void ThreadedVideoReader::reset(){
+void ThreadedVideoReader::reset(bool hard){
 	std::cout << "Camera " << deviceFile << " resetting..." << std::endl;
 	resetLock.lock();
-	VideoReader::reset();
+	VideoReader::reset(hard);
 	last_update = timeout_clock.now();
 	resetLock.unlock();
 	std::cout << "Camera " << deviceFile << " reset." << std::endl;
@@ -388,7 +405,7 @@ void VideoWriter::openWriter(int width, int height, const char* file) {
 	}
 }
 void VideoWriter::closeWriter(){
-	std::cout << "Killing VideoWriter: " << v4l2lo << std::endl;
+	std::cout << "Closing VideoWriter: " << v4l2lo << std::endl;
 	close(v4l2lo);
 }
 
