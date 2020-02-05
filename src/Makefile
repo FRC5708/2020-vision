@@ -1,6 +1,6 @@
 
-COMMON_FLAGS=-pg -Og -Wno-psabi -Wno-sign-compare -fopenmp -march=native -mcpu=native -mtune=native
-CXXFLAGS=-g -Wall --std=c++17 -ffast-math $(COMMON_FLAGS) -I/usr/include/opencv4/
+COMMON_FLAGS=-pg -Wno-psabi -Wno-sign-compare -fopenmp -march=native -mcpu=native -mtune=native
+CXXFLAGS=-ggdb -Wall --std=c++17 -ffast-math $(COMMON_FLAGS) -I/usr/include/opencv4/
 
 
 ODIR=obj

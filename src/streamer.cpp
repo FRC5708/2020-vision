@@ -573,6 +573,7 @@ string Streamer::controlMessage(string camera_string, string command){
 		toParse >> width;
 		toParse >> height;
 		if(toParse.fail()){
+			frameLock.unlock(); //Goddarn me.
 			return "-1:INVALID RESOLUTION (Not unsigned int)";
 		}
 		int retval = camera->setResolution(width,height);
