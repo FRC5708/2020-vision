@@ -585,27 +585,41 @@ std::vector<cv::Point> doVision(cv::Mat image) {
         largestCont.push_back(bestCont.topright);
         largestCont.push_back(bestCont.bottomleft);
         largestCont.push_back(bestCont.bottomright);
-        
-        std::vector<ProcessPointsResult> targets;        
-        //try { 
-            auto result = processPoints(bestCont, image.cols, image.rows);
-            if(result.success){
-                targets.push_back(result);
+        sort(largestCont.begin(), largestCont.end(), 
+            [](const cv::Point& a, const cv::Point& b) -> bool{
+                return a.y > b.y;
+            });
+        if(largestCont[0].y - 5 < largestCont[1].y && largestCont[1].y < largestCont[0].y + 5){
+            if(largestCont[2].y - 5 < largestCont[3].y && largestCont[3].y < largestCont[2].y + 5){
+                //the top and bottoms are relatively aligned (within 10 pixels)
+                        
+                for(auto p : largestCont){
+                    std::cout << p.x << " " << p.y << std::endl;
+                }
+                std::cout << std::endl;
+                std::vector<ProcessPointsResult> targets;        
+                //try { 
+                    auto result = processPoints(bestCont, image.cols, image.rows);
+                    if(result.success){
+                        targets.push_back(result);
+                    }
+                /*} catch(const cv::Exception& e){
+                    std::cout << "a cv::Exception was thrown" << std::endl; 
+                } */
+            
+                for(auto t : targets){
+                    std::cout << "distance: " << t.calcs.distance << std::endl;
+                }
+
+                return largestCont;
             }
-        /*} catch(const cv::Exception& e){
-            std::cout << "a cv::Exception was thrown" << std::endl; 
-        } */
-    
-        for(auto t : targets){
-            std::cout << "distance: " << t.calcs.distance << std::endl;
         }
-
-        //auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
-        //auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
-
-        //results1.insert(results1.begin(), results2.begin(), results2.end());
-        //return results1;
-        return largestCont;
     }   
+    //auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
+    //auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
+
+    //results1.insert(results1.begin(), results2.begin(), results2.end());
+    //return results1;
+    return std::vector<cv::Point>();
 }
 
