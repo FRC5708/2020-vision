@@ -68,7 +68,6 @@ public:
 ** ThreadedVideoReader extends VideoReader via a callback-based thread safe approach.
 ** It also runs a monitor that automatically resets the camera if it exceeds the new frame timeout.
 */
-
 class ThreadedVideoReader : public VideoReader {
 
 private:
@@ -103,7 +102,6 @@ class VideoWriter {
 	int v4l2lo;
 
 public:
-
 	void openWriter(int width, int height, const char* file);
 	void closeWriter();
     void writeFrame(cv::Mat& frame);

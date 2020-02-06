@@ -17,11 +17,11 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
  haven't tested (especially non-usb cameras) might not work.
 */
 
-VideoReader::VideoReader(int width, int height, const char* file) : deviceFile(std::string(file)){
-	this->width = width; this->height = height;
-}
-bool VideoReader::tryOpenReader(bool isClosed) {
 
+VideoReader::VideoReader(int width, int height, const char* file) : width(width),height(height),deviceFile(std::string(file)){
+}
+
+bool VideoReader::tryOpenReader(bool isClosed) {
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
@@ -303,8 +303,7 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 	last_update = timeout_clock.now();
 
 	mainLoopThread = std::thread([this]() {
-		openReader();
-		
+		openReader();	
 		resetTimeoutThread = std::thread(&ThreadedVideoReader::resetterMonitor,this); //Start monitoring thread.
 
 		while (true) {
