@@ -48,11 +48,9 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 
 void Streamer::handleCrash(pid_t pid) {
 	//TODO: Handle other things than gstreamer crashing? - Like what? Gstreamer is our only child process...
-	if(pid==gstreamer_pid){
-		if(!handlingLaunchRequest){
-            std::cout << "Realunching gStreamer after crash..." << std::endl;
-			runCommandAsync(gstreamer_command, servFd);
-		}
+	if(!handlingLaunchRequest && pid==gstreamer_pid){
+        std::cout << "Realunching gStreamer after crash..." << std::endl;
+		gstreamer_pid = runCommandAsync(gstreamer_command, servFd);
 	}
 }
 Streamer::Streamer(std::function<void(void)> callback){
