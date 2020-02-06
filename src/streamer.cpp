@@ -69,7 +69,11 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	
 	std::stringstream command;
 	command << gstreamCommand << " v4l2src device=" << file << " ! videoscale ! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
-	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
+	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! " 
+	// Normal streaming
+	 " udpsink"
+	// Tunneled streaming
+	// " gdppay ! tcpclientsink"
 	<< " host=" << recieveAddress << " port=" << port;
 
 	string strCommand = command.str();

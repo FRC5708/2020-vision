@@ -21,6 +21,8 @@ trap "kill -TERM -$$" SIGINT
 
 echo $BITRATE | nc $PI_ADDR 5807 &
     $GST_COMMAND udpsrc port=5809 caps="application/x-rtp, payload=96, clock-rate=90000" ! rtpssrcdemux ! application/x-rtp, payload=96, clock-rate=90000, media=video, encoding-name=H264 ! rtpjitterbuffer latency=50 mode=slave ! rtph264depay ! avdec_h264 ! autovideosink sync=false &
+    # Uncomment for tunneled streaming
+    # $GST_COMMAND tcpserversrc port=5809 ! gdpdepay ! rtph264depay ! avdec_h264 ! autovideosink sync=false &
 #else
 #    echo "Could not connect to rPi"
 #    exit 1
