@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
 

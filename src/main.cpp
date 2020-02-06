@@ -34,9 +34,8 @@ using std::cout; using std::cerr; using std::endl; using std::string;
 // when false, drastically slows down vision processing
 volatile bool visionEnabled = true;
 
-//std::vector<VisionTarget> lastResults;
-std::vector<cv::Point> lastResults;
-//std::vector<VisionTarget> lastResults;
+VisionTarget lastResults;
+//std::vector<cv::Point> lastResults;
 
 std::chrono::steady_clock timing_clock;
 auto currentFrameTime = timing_clock.now();
@@ -143,6 +142,7 @@ void VisionThread() {
 void setDefaultCalibParams() {
 	calib::width = 1280; calib::height = 720;
 	
+	// Old cameras' FOV is 69°, new camera is 78°
 	//constexpr double radFOV = (69.0/180.0)*M_PI;
 	constexpr double radFOV = (78.0/180.0)*M_PI;
 	const double pixFocalLength = tan((M_PI_2) - radFOV/2) * sqrt(pow(calib::width, 2) + pow(calib::height, 2))/2; // pixels. Estimated from the camera's FOV spec.
@@ -186,7 +186,6 @@ void changeCalibResolution(int width, int height) {
 	assert(calib::cameraMatrix.type() == CV_64F);
 	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.03) {
 		cerr << "wrong aspect ratio recieved from camera! Vision will be borked!" << endl;
-		return;
 	}
 	calib::cameraMatrix.at<double>(0, 0) *= (width / (double) calib::width);
 	calib::cameraMatrix.at<double>(0, 2) *= (width / (double) calib::width);
@@ -226,15 +225,7 @@ void chldHandler(int sig, siginfo_t *info, void *ucontext) {
 	streamer.handleCrash(info->si_pid);
 }
 void drawTargets(cv::Mat drawOn) {
-	/*for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
-		drawVisionPoints(i->drawPoints, drawOn);
-	}*/
-
-    cv::Scalar rawPointColor(128, 0);
-
-    for(auto p : lastResults){
-        cv::circle(drawOn, p, 1, rawPointColor);
-    }
+	drawVisionPoints(lastResults.drawPoints, drawOn);
     /*	
 	// draw thing to see if camera is updating
 	static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
