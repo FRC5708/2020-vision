@@ -251,7 +251,7 @@ void VideoReader::reset(bool hard){
 	}
 }
 int VideoReader::getWidth(){
-	return this->width; // I want to know the story behind this cast
+	return this->width; 
 }
 int VideoReader::getHeight(){
 	return this->height;

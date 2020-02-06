@@ -602,7 +602,7 @@ string Streamer::controlMessage(string camera_string, string command){
 		frameLock.unlock();
 	}else if(command.substr(0,5)=="reset"){
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
-		camera->reset();
+		camera->reset(true);
 		return status.str();
 	}
 	else{
