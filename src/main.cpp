@@ -33,6 +33,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <dlfcn.h>
+#include <stdio.h>
+#include <unistd.h>
+
 using std::cout; using std::cerr; using std::endl; using std::string;
 
 
