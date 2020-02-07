@@ -110,7 +110,7 @@ void VisionThread() {
 	nice(5);
 	if (errno != 0) perror("nice");
 
-	//DataComm rioComm=DataComm("10.57.8.2", "5808");
+	DataComm rioComm=DataComm("10.57.8.2", "5808");
 
 	auto lastFrameTime = currentFrameTime;
 	while (true) {
@@ -124,18 +124,8 @@ void VisionThread() {
 		// currentFrameTime serves as a unique marker for this frame
 		lastFrameTime = currentFrameTime;
 		lastResults = doVision(streamer.getBGRFrame());
-        /*
-		//streamer.setDrawTargets(&lastResults);
 		
-		std::vector<VisionData> calcs;
-		calcs.reserve(lastResults.size());
-		for (auto i : lastResults) {
-			calcs.push_back(i.calcs);
-		} 
-		
-		rioComm.sendData(calcs, lastFrameTime);
-		*/
-		
+		if (lastResults.calcs.distance != 0) rioComm.sendData(lastResults.calcs, lastFrameTime);		
 	}
 }
 
