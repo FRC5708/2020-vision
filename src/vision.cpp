@@ -559,10 +559,14 @@ VisionTarget doVision(cv::Mat image) {
     
     std::chrono::duration<double> elapsed_seconds = end-start;
     std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-    std::cout << "finished computation at " << std::ctime(&end_time)
+	if (verboseMode) {
+    	std::cout << "finished computation at " << std::ctime(&end_time)
               << "elapsed time: " << elapsed_seconds.count() << "s\n";
+			  
+			  cout << "Found " << conts.size() << " contours" << std::endl; 
+	}
 
-    cout << "Found " << conts.size() << " contours" << std::endl; 
+    
     for(auto c : conts){
        //filter out contours that don't make sense
 
