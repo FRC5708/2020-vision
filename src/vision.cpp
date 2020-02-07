@@ -5,8 +5,11 @@
 #include <iostream>
 #include <chrono>
 #include <memory>
+#include <cmath>
 
 #include "GripHexFinder.hpp"
+
+#define PI 3.14159265
 
 // this function from opencv/samples/cpp/tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
 using std::vector;
@@ -546,22 +549,12 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 VisionTarget doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
 
-	//grip::RedContourGrip finder;
-	//finder.Process(image);
     grip::GripHexFinder finder;
     finder.Process(image);
 
     //convert lines to contours
-    
-    auto start = std::chrono::system_clock::now();
     std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
-    auto end = std::chrono::system_clock::now();
     
-    std::chrono::duration<double> elapsed_seconds = end-start;
-    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-    std::cout << "finished computation at " << std::ctime(&end_time)
-              << "elapsed time: " << elapsed_seconds.count() << "s\n";
-
     cout << "Found " << conts.size() << " contours" << std::endl; 
     for(auto c : conts){
        //filter out contours that don't make sense
@@ -573,18 +566,18 @@ VisionTarget doVision(cv::Mat image) {
         if(contPerc > 0.01 && c.size() > 4){
             ContourCorners bestCont = getContourCorners(c);
             std::vector<cv::Point2f> largestCont;
-            largestCont.push_back(bestCont.topleft);
-            largestCont.push_back(bestCont.topright);
-            largestCont.push_back(bestCont.bottomleft);
-            largestCont.push_back(bestCont.bottomright);
+            largestCont.push_back(bestCont.topleft); largestCont.push_back(bestCont.topright);
+            largestCont.push_back(bestCont.bottomleft);largestCont.push_back(bestCont.bottomright);
             sort(largestCont.begin(), largestCont.end(), 
                 [](const cv::Point& a, const cv::Point& b) -> bool{
                     return a.y > b.y;
                 });
-            if(largestCont[0].y - 5 < largestCont[1].y && largestCont[1].y < largestCont[0].y + 5){
-                if(largestCont[2].y - 5 < largestCont[3].y && largestCont[3].y < largestCont[2].y + 5){
+            
+            double topAng = abs(atan((largestCont[0].y - largestCont[1].y)/(largestCont[0].x - largestCont[1].x))) * 180.0 / PI;
+            double botAng = abs(atan((largestCont[2].y - largestCont[3].y)/(largestCont[2].x - largestCont[3].x))) * 180.0 / PI;
+            if(topAng < 15.0 && botAng < 15.0){
+                //if(){
                     //the top and bottoms are relatively aligned (within 10 pixels)
-                    
                     std::vector<ProcessPointsResult> targets;        
                     try { 
                         auto result = processPoints(bestCont, image.cols, image.rows);
@@ -603,7 +596,7 @@ VisionTarget doVision(cv::Mat image) {
 
                     // TODO: In the rare case that there's more than one result, choose which one to return
                     if (targets.size() > 0) return targets[0].t;
-                }
+                //}
             }
         }
     }
