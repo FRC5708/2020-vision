@@ -133,9 +133,10 @@ void Streamer::start() {
 	}
 
 
-	for (auto i = cameraNames.begin(); i < cameraNames.end(); ++i) {
-		vector<string> namedCameras = getVideoDevicesWithString(*i);
+	for (auto& i : cameraNames) {
+		vector<string> namedCameras = getVideoDevicesWithString(i);
 		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
+		if (visionCameraName.empty() && namedCameras.size() > 0) visionCameraName = i;
 	}
 	
 	std::cout << "Cameras detected: " << cameraDevs.size() << std::endl;

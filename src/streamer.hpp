@@ -26,7 +26,6 @@ class Streamer {
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
 
 	std::vector<std::string> cameraDevs;
-
 	
 	std::string loopbackDev;
 
@@ -84,6 +83,8 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
+	
+	std::string visionCameraName;
 };
 extern int clientFd;
 

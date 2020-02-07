@@ -30,7 +30,6 @@
 
 #include <dlfcn.h>
 #include <stdio.h>
-#include <unistd.h>
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
@@ -149,13 +148,13 @@ void setDefaultCalibParams() {
 	calib::cameraMatrix = cv::Mat(3, 3, CV_64F, cameraMatrixVals);
 	// distCoeffs is empty matrix
 }
-bool readCalibParams(const char* path, bool failHard = true) {
+bool readCalibParams(const std::string path) {
+	cout << "Reading calibration data from " << path << endl;
 	cv::FileStorage calibFile;
-	calibFile.open(path, cv::FileStorage::READ);
+	calibFile.open(path.c_str(), cv::FileStorage::READ);
 	if (!calibFile.isOpened()) {
 		std::cerr << "Failed to open camera data " << path << endl;
-		if (failHard) exit(1);
-		else return false;
+		return false;
 	}
 	
 	//setDefaultCalibParams();
@@ -251,7 +250,7 @@ int main(int argc, char** argv) {
 	verboseMode = false;
 	
 	if (argc >= 3) {
-		readCalibParams(argv[1]);
+		if (!readCalibParams(argv[1])) exit(1);
 		doImageTesting(argv[2]);
 		return 0;
 	}
@@ -261,19 +260,18 @@ int main(int argc, char** argv) {
 			doImageTesting(argv[1]);
 			return 0;
 		}
-		else readCalibParams(argv[1]);
+		else {
+			if (!readCalibParams(argv[1])) exit(1);
+		}
 	}
 	else if (argc == 1) {
-		if (!readCalibParams("/home/pi/vision-code/calib_data/logitech_c920.xml", false)) {
-			setDefaultCalibParams();
-		}
+		// Load camera-specific params after we know which camera we're using
+		setDefaultCalibParams();
 	}
 	else {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
-	// Enables the v4l2loopback kernel module if it hasn't already
-	system("/home/pi/bin/run_setup_v4l2loopback");
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 	signal(SIGPIPE, SIG_IGN);
@@ -305,6 +303,9 @@ int main(int argc, char** argv) {
 		}
 		exit(0);
 	});
+	
+	// will fail if the file doesn't exist, and use the default params instead
+	readCalibParams("/home/pi/calib-data/" + streamer.visionCameraName + ".xml");
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 

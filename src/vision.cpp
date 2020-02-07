@@ -10,7 +10,6 @@
 
 #define PI 3.14159265
 
-// this function from opencv/samples/cpp/tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
 using std::vector;
 using std::cout; using std::endl;
 
