@@ -563,67 +563,49 @@ VisionTarget doVision(cv::Mat image) {
               << "elapsed time: " << elapsed_seconds.count() << "s\n";
 
     cout << "Found " << conts.size() << " contours" << std::endl; 
-    int i = 0;
-    double largestArea = 0;
-    std::vector<cv::Point> largestCont;
-    ContourCorners bestCont;
-    bool foundContour = false;
     for(auto c : conts){
        //filter out contours that don't make sense
-        //for now: use the largest contour
 
-        //cout << "Contour " << i << " with " << c.size() << " points" << endl;
-        i++;
-        double a = cv::contourArea(c);
-        if(a > largestArea && c.size() > 4){
-            foundContour = true;
-            largestArea = a;
-            largestCont.clear();
-            
-            bestCont = getContourCorners(c);
-            //largestCont.assign(c.begin(), c.end());
-        }
-    }
-   
-    std::cout << "Image Size: " << image.cols << " " << image.rows << std::endl;
-    if(foundContour){
-        largestCont.push_back(bestCont.topleft);
-        largestCont.push_back(bestCont.topright);
-        largestCont.push_back(bestCont.bottomleft);
-        largestCont.push_back(bestCont.bottomright);
-        sort(largestCont.begin(), largestCont.end(), 
-            [](const cv::Point& a, const cv::Point& b) -> bool{
-                return a.y > b.y;
-            });
-        if(largestCont[0].y - 5 < largestCont[1].y && largestCont[1].y < largestCont[0].y + 5){
-            if(largestCont[2].y - 5 < largestCont[3].y && largestCont[3].y < largestCont[2].y + 5){
-                //the top and bottoms are relatively aligned (within 10 pixels)
-                        
-                /*for(auto p : largestCont){
-                    std::cout << p.x << " " << p.y << std::endl;
-                }
-                std::cout << std::endl;
-                */
-
-                std::vector<ProcessPointsResult> targets;        
-                try { 
-                    auto result = processPoints(bestCont, image.cols, image.rows);
-                    if(result.success){
-                        targets.push_back(result);
+        //ensure contour area is at least a certain percent of the image
+        double imageArea = image.rows*image.cols;
+        double contArea = cv::contourArea(c);
+        double contPerc = contArea/imageArea;
+        if(contPerc > 0.01 && c.size() > 4){
+            ContourCorners bestCont = getContourCorners(c);
+            std::vector<cv::Point2f> largestCont;
+            largestCont.push_back(bestCont.topleft);
+            largestCont.push_back(bestCont.topright);
+            largestCont.push_back(bestCont.bottomleft);
+            largestCont.push_back(bestCont.bottomright);
+            sort(largestCont.begin(), largestCont.end(), 
+                [](const cv::Point& a, const cv::Point& b) -> bool{
+                    return a.y > b.y;
+                });
+            if(largestCont[0].y - 5 < largestCont[1].y && largestCont[1].y < largestCont[0].y + 5){
+                if(largestCont[2].y - 5 < largestCont[3].y && largestCont[3].y < largestCont[2].y + 5){
+                    //the top and bottoms are relatively aligned (within 10 pixels)
+                    
+                    std::vector<ProcessPointsResult> targets;        
+                    try { 
+                        auto result = processPoints(bestCont, image.cols, image.rows);
+                        if(result.success){
+                            targets.push_back(result);
+                        }
+                    } catch(const cv::Exception& e){
+                        std::cout << "a cv::Exception was thrown" << std::endl;
+                        continue;
                     }
-                } catch(const cv::Exception& e){
-                    std::cout << "a cv::Exception was thrown" << std::endl; 
-                }
-            
-                //return largestCont;
-                for(auto target : targets){
-                    std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
-                }
+                
+                    //return largestCont;
+                    for(auto target : targets){
+                        std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
+                    }
 
-                // TODO: In the rare case that there's more than one result, choose which one to return
-                if (targets.size() > 0) return targets[0].t;
+                    // TODO: In the rare case that there's more than one result, choose which one to return
+                    if (targets.size() > 0) return targets[0].t;
+                }
             }
         }
-    }   
+    }
 	return {};
 }
