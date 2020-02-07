@@ -423,6 +423,8 @@ VisionTarget doVision(cv::Mat image) {
     std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
     
     cout << "Found " << conts.size() << " contours" << std::endl; 
+	
+	std::vector<ProcessPointsResult> results;   
     for(auto c : conts){
        //filter out contours that don't make sense
 
@@ -431,41 +433,39 @@ VisionTarget doVision(cv::Mat image) {
         double contArea = cv::contourArea(c);
         double contPerc = contArea/imageArea;
         if(contPerc > 0.01 && c.size() > 4){
-            ContourCorners bestCont = getContourCorners(c);
-            std::vector<cv::Point2f> largestCont;
-            largestCont.push_back(bestCont.topleft); largestCont.push_back(bestCont.topright);
-            largestCont.push_back(bestCont.bottomleft);largestCont.push_back(bestCont.bottomright);
-            sort(largestCont.begin(), largestCont.end(), 
+            ContourCorners corners = getContourCorners(c);
+            std::vector<cv::Point2f> cornerPoints;
+            cornerPoints.push_back(corners.topleft); cornerPoints.push_back(corners.topright);
+            cornerPoints.push_back(corners.bottomleft);cornerPoints.push_back(corners.bottomright);
+            sort(cornerPoints.begin(), cornerPoints.end(), 
                 [](const cv::Point& a, const cv::Point& b) -> bool{
                     return a.y > b.y;
                 });
             
-            double topAng = abs(atan((largestCont[0].y - largestCont[1].y)/(largestCont[0].x - largestCont[1].x))) * 180.0 / PI;
-            double botAng = abs(atan((largestCont[2].y - largestCont[3].y)/(largestCont[2].x - largestCont[3].x))) * 180.0 / PI;
+            double topAng = abs(atan((cornerPoints[0].y - cornerPoints[1].y)/(cornerPoints[0].x - cornerPoints[1].x))) * 180.0 / PI;
+            double botAng = abs(atan((cornerPoints[2].y - cornerPoints[3].y)/(cornerPoints[2].x - cornerPoints[3].x))) * 180.0 / PI;
             if(topAng < 15.0 && botAng < 15.0){
                 //if(){
                     //the top and bottoms are relatively aligned (within 10 pixels)
-                    std::vector<ProcessPointsResult> targets;        
+                         
                     try { 
-                        auto result = processPoints(bestCont, image.cols, image.rows);
+                        auto result = processPoints(corners, image.cols, image.rows);
                         if(result.success){
-                            targets.push_back(result);
+                            results.push_back(result);
                         }
                     } catch(const cv::Exception& e){
                         std::cout << "a cv::Exception was thrown" << std::endl;
                         continue;
                     }
                 
-                    //return largestCont;
-                    for(auto target : targets){
+                    for(auto target : results){
                         std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
                     }
-
-                    // TODO: In the rare case that there's more than one result, choose which one to return
-                    if (targets.size() > 0) return targets[0].t;
                 //}
             }
         }
     }
-	return {};
+	// TODO: In the rare case that there's more than one result, choose which one to return
+    if (results.size() > 0) return results[0].t;
+	else return {};
 }
