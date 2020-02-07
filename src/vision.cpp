@@ -1,5 +1,4 @@
 #include "vision.hpp"
-#include "RedContourGrip.hpp"
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
@@ -14,26 +13,6 @@
 // this function from opencv/samples/cpp/tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
 using std::vector;
 using std::cout; using std::endl;
-namespace cv {
-	static double computeReprojectionErrors( const vector<Point3f>& objectPoints,
-											const vector<Point2f>& imagePoints,
-											const Mat& rvec, const Mat& tvec,
-											const Mat& cameraMatrix , const Mat& distCoeffs) {
-		vector<Point2f> imagePoints2;
-		size_t totalPoints = 0;
-		double totalErr = 0, err;
-
-		projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, imagePoints2);
-		
-		err = norm(imagePoints, imagePoints2, NORM_L2);
-
-		size_t n = objectPoints.size();
-		totalErr        += err*err;
-		totalPoints     += n;
-
-		return std::sqrt(totalErr/totalPoints);
-	}
-}
 
 bool isImageTesting = false;
 bool verboseMode = false;
@@ -47,31 +26,6 @@ namespace calib {
 bool isNanOrInf(double in) {
 	return isnan(in) || isinf(in);
 }
-
-// from http://answers.opencv.org/question/16796/computing-attituderoll-pitch-yaw-from-solvepnp/?answer=52913#post-id-52913
-cv::Vec3d getEulerAngles(cv::Mat &rotation) {
-	cv::Mat rotCamerMatrix;
-	cv::Rodrigues(rotation, rotCamerMatrix);
-
-    cv::Mat cameraMatrix,rotMatrix,transVect,rotMatrixX,rotMatrixY,rotMatrixZ;
-	cv::Vec3d eulerAngles;
-    double* _r = rotCamerMatrix.ptr<double>();
-    double projMatrix[12] = {_r[0],_r[1],_r[2],0,
-                          _r[3],_r[4],_r[5],0,
-                          _r[6],_r[7],_r[8],0};
-
-    decomposeProjectionMatrix(cv::Mat(3,4,CV_64FC1,projMatrix),
-                               cameraMatrix,
-                               rotMatrix,
-                               transVect,
-                               rotMatrixX,
-                               rotMatrixY,
-                               rotMatrixZ,
-                               eulerAngles);
-	return eulerAngles;
-}
-
-
 
 // All the constants
 
@@ -459,92 +413,6 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	
 	return { true, resultUsing->pixError, resultUsing->output, draw };
 }
-
-/*std::vector<VisionTarget> processContours(
-	std::vector< std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
-    std::vector<cv::Rect> rects;
-	std::vector<ContourCorners> contourCorners;
-	std::vector<VisionTarget> results;
-
-	const float minRectWidth = 10; //pixels 
-	const float minRectHeight= 10;
-    cout << "num contours: " << contours->size() << endl;
-	for (auto i : *contours) {
-		cv::Rect rect = cv::boundingRect(i);
-		if (rect.width >= minRectWidth && rect.height >= minRectHeight) {
-			rects.push_back(rect);
-			//if (verboseMode) {
-			//	std::cout << "contour: " <<
-			//}
-			ContourCorners corners = getContourCorners(i);
-			if (corners.valid){ 
-		        cout << "TL: " << corners.topleft.x << " " << corners.topleft.y <<endl;
-		        cout << "TR: " << corners.topright.x << " " << corners.topright.y <<endl;
-		        cout << "BL: " << corners.bottomleft.x<<" "<< corners.bottomleft.y<<endl;
-		        cout << "BR: " << corners.bottomright.x<<" "<<corners.bottomright.y<<endl;
-                cout << endl;
-				
-				try {
-					ProcessPointsResult result = processPoints(
-						corners, imgWidth, imgHeight);
-
-					if (result.success) {
-						results.push_back({ result.calcs, result.drawPoints });
-					}
-				}
-				catch (const cv::Exception& e) {
-					if (isImageTesting) throw;
-					std::cerr << "ProcessPoints threw a cv::Exception: " << e.msg << std::endl;
-				}
-            }
-        }
-	}
-	
-	/*
-	const float rectSizeDifferenceTolerance = 0.5; // fraction of width/height
-	const float rectYDifferenceTolerance = 0.5;
-	const float rectDistanceTolerance = 10; // multiplier of the width of one rectangle, that the whole vision target can be
-
-	if (verboseMode) for (auto rect : rects) {
-		std::cout << "found rect: x:" << rect.x << ",y:" << rect.y << ",w:" << rect.width << ",h:" << rect.height << std::endl;
-	}
-	
-	// find rects that are close enough in size and distance
-	for (unsigned int i = 0; i < rects.size(); ++i) {
-		for (unsigned int j = 0; j < rects.size(); ++j) {
-			cv::Rect& left = rects[i];
-			cv::Rect& right = rects[j];
-
-			if (left != right &&
-				left.br().x < right.tl().x &&
-				left.tl().x + (left.width + right.width) / 2 * rectDistanceTolerance > right.br().x &&
-			    abs(left.width - right.width) < rectSizeDifferenceTolerance * (left.width + right.width) / 2 &&
-				abs(left.height - right.height) < rectSizeDifferenceTolerance * (left.width + right.width) / 2 &&
-				abs(left.br().y - right.br().y) < rectYDifferenceTolerance * (left.height + right.height) / 2) {
-				// keep around old output for debugging
-				//if (verboseMode) processRects(left, right, imgWidth, imgHeight);
-				try {
-					ProcessPointsResult result = processPoints(
-						contourCorners[i], contourCorners[j], imgWidth, imgHeight);
-
-					if (result.success) {
-						results.push_back({ result.calcs, result.drawPoints, left, right });
-					}
-				}
-				catch (const cv::Exception e) {
-					if (isImageTesting) throw;
-					std::cerr << "ProcessPoints threw a cv::Exception: " << e.msg << std::endl;
-				}
-			}
-		}
-	}
-	// lowest distance first
-	std::sort(results.begin(), results.end(), [](VisionTarget a, VisionTarget b) -> bool {
-		return a.calcs.distance < b.calcs.distance;
-	});
-	
-	return results;
-}*/
 
 VisionTarget doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
