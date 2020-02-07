@@ -229,7 +229,7 @@ void Streamer::setupFramebuffer() {
 	
 	cv::Mat badColorTile, badChromaResTile, tile;
 	cv::resize(source, badColorTile, {tileWidth, tileHeight});
-	assert(badColorTile.type() == CV_8UC3);
+	if(badColorTile.type() != CV_8UC3) return; //We got a 
 	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
 	tile.create(tileHeight, tileWidth, CV_8UC2);
 	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
@@ -243,7 +243,6 @@ void Streamer::setupFramebuffer() {
 		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
 	}
 	
-	assert(tile.type() == CV_8UC2);
 	
 	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
 		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
