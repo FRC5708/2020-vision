@@ -52,8 +52,8 @@ auto currentFrameTime = timing_clock.now();
 std::mutex waitMutex; 
 std::condition_variable condition;
 void visionFrameNotifier(); //Declared later
-void drawTargets(cv::Mat); //Declared later
-Streamer streamer(visionFrameNotifier,drawTargets);
+void annotateFrame(cv::Mat&); //Declared later
+Streamer streamer(visionFrameNotifier,annotateFrame);
 
 // recieves enable/disable signals from the RIO to conserve thermal capacity
 // Also allows control packets to be sent to modify camera values.
@@ -96,8 +96,7 @@ void ControlSocket() { //This is obsolete and should be removed, in favour of Co
 
 	while (true) {
 		char buf[66537];
-		ssize_t recieveSize = recvfrom(sockfd, buf, sizeof(buf) - 1, 
-		0, nullptr, nullptr);
+		ssize_t recieveSize = recvfrom(sockfd, buf, sizeof(buf) - 1, 0, nullptr, nullptr);
 		if (recieveSize > 0) {
 			buf[recieveSize] = '\0';
 			cout << buf << endl;
@@ -227,11 +226,22 @@ bool fileIsImage(char* file) {
 	for (auto & c: extension) c = toupper(c);
 	return extension == "PNG" || extension == "JPG" || extension == "JPEG";
 }
-void drawTargets(cv::Mat drawOn) {
+/* void annotateFrame(cv::Mat& drawOn)
+** Draws the currently-detected vision overlay points on top of the matrix passed in.
+** TODO: Draws targeting reticle
+** Also overlays a spinning-circle thingy to make it obvious that the stream is alive.
+*/
+void annotateFrame(cv::Mat& drawOn) {
 	for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
 		drawVisionPoints(i->drawPoints, drawOn);
 	}
-	
+	cv::rectangle(
+		drawOn,
+		{drawOn.rows/5,drawOn.cols/5},
+		{drawOn.rows-drawOn.rows/5,drawOn.cols-drawOn.cols/5},
+		{0,0},
+		3
+	);
 	// draw thing to see if camera is updating
 	static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
 
