@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
 #include <unistd.h>
 #include <math.h>
 #include <string>
@@ -30,12 +31,7 @@
 #include "ControlPacketReceiver.hpp"
 
 #include <dlfcn.h>
-#include <stdio.h>
-#include <unistd.h>
 
-#include <dlfcn.h>
-#include <stdio.h>
-#include <unistd.h>
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
@@ -54,9 +50,10 @@ std::condition_variable condition;
 void visionFrameNotifier(); //Declared later in namespace
 Streamer streamer(visionFrameNotifier);
 
-// recieves enable/disable signals from the RIO to conserve thermal capacity
-// Also allows control packets to be sent to modify camera values.
-// Also sets exposure when actively driving to target
+//Callback function passed into ControlPacketReceiver.
+// recieves enable/disable signals from the RIO to conserve thermal capacity.
+// Also sets exposure when actively driving to target.
+// Also allows control packets to be sent to modify camera values. (See streamer.hpp:parseControlMessage() for more information)
 string parseControlMessage(string message) {
 	
 	std::stringstream status=std::stringstream("");
@@ -116,7 +113,7 @@ void VisionThread() {
 	}
 }
 
-void setDefaultCalibParams() { //Is this accurate?
+void setDefaultCalibParams() {
 	calib::width = 1280; calib::height = 720;
 	
 	//constexpr double radFOV = (69.0/180.0)*M_PI;

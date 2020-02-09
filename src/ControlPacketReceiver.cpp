@@ -66,12 +66,14 @@ int ControlPacketReceiver::setupSocket(){
 void ControlPacketReceiver::receivePackets(){
     std::cout << "@ReceivePackets thread started" << std::endl;
     while (!destroyReceiver) {
-		std::cout << "Attempting to establish connection to control packet sender..." << std::endl;
+		std::cout << "Listening for control packet sender..." << std::endl;
 		struct sockaddr_in6 clientAddr;
 		socklen_t clientAddrLen = sizeof(clientAddr);
 		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
 		if (clientFd < 0) {
 			perror("accept");
+			// Don't spam the console
+			sleep(1);
 			continue;
 		}
 		std::cout << "Connection to controller established." << std::endl;

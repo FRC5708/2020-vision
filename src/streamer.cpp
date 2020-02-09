@@ -123,7 +123,7 @@ vector<string> cameraNames = {
 
 void Streamer::start() {
 	setupCameras();
-	calculateOutputWidth();
+	calculateOutputSize();
 	setupFramebuffer();
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 	initialized = true;	
@@ -189,7 +189,7 @@ void Streamer::setupCameras(){
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 }
-void Streamer::calculateOutputWidth(){
+void Streamer::calculateOutputSize(){
 	switch (cameraDevs.size()) {
 	case 1:
 		outputWidth = cameraReaders[0]->getWidth(); outputHeight = cameraReaders[0]->getHeight();
@@ -314,19 +314,15 @@ void Streamer::dsListener() {
 			perror("write");
 		}
 		interceptStdio(clientFd, "Remote: ");
-
-		//if (close(clientFd) == -1) perror("close");
 		
 		// wait for client's gstreamer to initialize
-		sleep(2);
+		sleep(1);
 
 		char strAddr[INET6_ADDRSTRLEN];
 		this->strAddr=strAddr;
 		getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
 		0,0,NI_NUMERICHOST);
 
-		//vector<string> outputVideoDevs = cameraDevs;
-		//outputVideoDevs[0] = loopbackDev;
 		launchGStreamer(correctedWidth, correctedHeight, strAddr, bitrate, "5809", loopbackDev);
 		handlingLaunchRequest = false;
 	}
@@ -518,15 +514,6 @@ void Streamer::pushFrame(int i) {
 }
 
 string Streamer::parseControlMessage(string command, string arguments){
-	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...]
-	**Returned status syntax: 
-	**	Camerano1:RETNO:STATUS MESSAGE
-	**  Camerano2:RETNO:STATUS MESSAGE
-	**  ...
-	**If the original control message is completely unparseable, the return status is
-	**  UNPARSABLE MESSAGE
-	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
-	*/
 	std::stringstream status=std::stringstream("");
 	std::stringstream argumentStream(arguments);
 
@@ -582,7 +569,7 @@ string Streamer::controlMessage(string camera_string, string command){
 				killGstreamerInstance();
 			}
 			std::cout << "Calculating modified output width..." << std::endl;
-			calculateOutputWidth();
+			calculateOutputSize();
 			std::cout << "Setting up framebuffer..." << std::endl;
 			setupFramebuffer();
 			std::cout << "Restarting Video Writer..." << std::endl;

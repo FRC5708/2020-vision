@@ -67,7 +67,7 @@ public:
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
 	int getVisionCameraWidth() { return visionCamera->getWidth(); }
 	int getVisionCameraHeight() { return visionCamera->getHeight(); }
-	void calculateOutputWidth(); //Calculates and updates values of outputWidth, outputHeight
+	void calculateOutputSize(); //Calculates and updates values of outputWidth, outputHeight
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
@@ -88,8 +88,21 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
-	std::string parseControlMessage(std::string command, std::string arguments); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
-	std::string controlMessage(std::string camera, std::string command);
+	
+	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...] 
+	**Returned status syntax: 
+	**	Camerano1:RETNO:STATUS MESSAGE
+	**  Camerano2:RETNO:STATUS MESSAGE
+	**  ...
+	**If the original control message is completely unparseable, the return status is
+	**  UNPARSABLE MESSAGE
+	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
+	
+	Available control messages are: reset, resolution <width> <height>
+	*/
+	std::string parseControlMessage(std::string command, std::string arguments); 
+private:
+	std::string controlMessage(std::string camera_string, std::string command);
 };
 extern int clientFd;
 
