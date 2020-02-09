@@ -276,6 +276,14 @@ int main(int argc, char** argv) {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
+
+	// Kill other instances of the program and its children that might be hanging around
+	system("killall --quiet gst-launch-1.0");
+	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
+	// Wait for the cameras to fully close
+	if (killallResponse == 0) {
+		sleep(1);
+	}
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 	signal(SIGPIPE, SIG_IGN);
