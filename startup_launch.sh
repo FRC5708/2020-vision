@@ -1,16 +1,20 @@
 #!/bin/bash
 
-# run on startup
+# run this on startup (put a line like @reboot /path/to/this/script in crontab)
 # relaunches vision code if it crashes
 
 EXEC_PATH=/home/pi/bin/5708-vision
 
 while [ true ]; do 
-    
-    killall ffmpeg
-    killall gst-launch-1.0
 
+    # If someone's removed the executable, end the script
     if [ ! -f $EXEC_PATH ]; then exit; fi
-    $EXEC_PATH
-
+        
+        
+    # If it's not running already, start it
+    if ! killall -0 5708-vision ; then
+        $EXEC_PATH
+    fi
+    sleep 1
+    
 done
