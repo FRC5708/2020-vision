@@ -226,32 +226,53 @@ bool fileIsImage(char* file) {
 	for (auto & c: extension) c = toupper(c);
 	return extension == "PNG" || extension == "JPG" || extension == "JPEG";
 }
+
+
+/* bool isTargetLocked()
+** TODO: IMPLEMENT ME!
+** Returns true if shooting target is at an acceptable distance and offset angle
+*/
+bool isTargetLocked(){
+	//TODO: Implement me, Sebastian!
+	return true;
+}
+
 /* void annotateFrame(cv::Mat& drawOn)
 ** Draws the currently-detected vision overlay points on top of the matrix passed in.
-** TODO: Draws targeting reticle
+** Draws targeting reticle that is green when isTargetLocked() returns true.
 ** Also overlays a spinning-circle thingy to make it obvious that the stream is alive.
 */
 void annotateFrame(cv::Mat& drawOn) {
+
+	//Draw vision points
 	for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
 		drawVisionPoints(i->drawPoints, drawOn);
 	}
-	cv::rectangle(
-		drawOn,
-		{drawOn.rows/5,drawOn.cols/5},
-		{drawOn.rows-drawOn.rows/5,drawOn.cols-drawOn.cols/5},
-		{0,0},
-		3
-	);
-	// draw thing to see if camera is updating
-	static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
 
-	// one revolution per second
-	double angle = 2*M_PI * 
-	std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
-	cv::line(drawOn, 
-	{ drawOn.cols/2, drawOn.rows/2 }, 
-	{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
-	 { 0, 0 });
+	//Draw targeting reticle
+	{
+		bool targetLock=isTargetLocked(); //Are we good 
+		cv::rectangle(
+			drawOn, //Target Matrix
+			{drawOn.cols/5,drawOn.rows/5}, //Upper-left point
+			{drawOn.cols-drawOn.cols/5,drawOn.rows-drawOn.rows/5}, //Lower-right point
+			{0,(targetLock ? 255: 128)}, //Green if targetLock, black otherwise.
+			2 //Line thickness (pixels)
+		);
+	}
+
+	// draw thing to see if camera is updating
+	{
+		static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
+
+		// one revolution per second
+		double angle = 2*M_PI * 
+		std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
+		cv::line(drawOn, 
+		{ drawOn.cols/2, drawOn.rows/2 }, 
+		{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
+		{ 0, 0 });
+	}
 }
 void visionFrameNotifier(){
 		
