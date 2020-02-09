@@ -517,41 +517,34 @@ string Streamer::parseControlMessage(string command, string arguments){
 	std::stringstream status=std::stringstream("");
 	std::stringstream argumentStream(arguments);
 
-	std::string buffer;
-	std::vector<string> cameras;
-	while(getline(argumentStream,buffer,',')){
-		cameras.push_back(buffer);
+	unsigned int camera;
+	std::vector<int> cameras;
+	int idxAfterLastCamNum = 0;
+	while(argumentStream >> camera){
+		cameras.push_back(camera);
+		idxAfterLastCamNum = argumentStream.tellg();
+		argumentStream.ignore(std::numeric_limits<std::streamsize>::max(), ',');
 	}
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
 		return "UNPARSABLE MESSAGE (No cameras specified)\n";
 	}
-	for(string &i : cameras){
-		string return_status=controlMessage(i,command);
+	for(int i : cameras){
+		string return_status=controlMessage(i,command, arguments.substr(idxAfterLastCamNum, string::npos));
 		status << i << ":" << return_status << "\n";
 	}
 	return status.str(); //Delightful.
 
 }
-string Streamer::controlMessage(string camera_string, string command){
+string Streamer::controlMessage(int cam_no, string command, string arguments){
 	
 	std::stringstream status=std::stringstream("");
-	int cam_no;
-	ThreadedVideoReader* camera=nullptr;
-	//Make sure that we actually were given a valid camera.
-	try{
-		cam_no=stoi(camera_string);
-		camera=cameraReaders.at(cam_no).get();
-	}catch(...){
-		return "-1:INVALID CAMERA NO";
-	}
+	ThreadedVideoReader* camera = cameraReaders.at(cam_no).get();
 
 	//Resolution command
-	if(command.substr(0,10)=="resolution"){
+	if(command=="resolution"){
 		frameLock.lock(); //Spooky bad times here.
-		std::stringstream toParse=std::stringstream(command);
-		string buffer;
-		toParse >> buffer; //Dispose of the command name
+		std::stringstream toParse=std::stringstream(arguments);
 		unsigned int width,height;
 		toParse >> width;
 		toParse >> height;
@@ -581,13 +574,13 @@ string Streamer::controlMessage(string camera_string, string command){
 			handlingLaunchRequest=false;
 		}
 		frameLock.unlock();
-	}else if(command.substr(0,5)=="reset"){
+	}else if(command == "reset"){
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset(true);
 		return status.str();
 	}
 	else{
-		status << "-1:Command \"" << command << "\" not implemented yet.";
+		status << "-1:Unrecognized command \"" << command << "\"\n";
 	}
 	return status.str();
 }
