@@ -16,8 +16,8 @@
 // Also intercepts the video stream from one camera to feed into vision processing
 class Streamer {	
 	cv::Mat image;
-	char* strAddr;//Ugly, fixme
-	char* bitrate;//Ugly, fixme
+	std::string strAddr;
+	int bitrate;
 
 
 	pid_t gstreamer_pid=0;

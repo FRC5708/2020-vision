@@ -114,8 +114,7 @@ void ControlSocket() { //This is obsolete and should be removed, in favour of Co
 	}
 }
 
-void VisionThread() { //This should almost-certainly be refactored out into its own thing. (vision.cpp, maybe?) - NO. Coordination between camera and vision is what main.cpp is for.
-	// give this thread a lower priority
+void VisionThread() {
 	errno = 0;
 	nice(5);
 	if (errno != 0) perror("nice");

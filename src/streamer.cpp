@@ -46,8 +46,8 @@ pid_t runCommandAsync(const std::string& cmd) {
 }
 
 void Streamer::handleCrash(pid_t pid) {
-	//TODO: Handle other things than gstreamer crashing? - Like what? Gstreamer is our only child process...
 	if(!handlingLaunchRequest && pid==gstreamer_pid){
+		// Theoretically using cout in a signal handler is bad, but it's never caused an issue for us
         std::cout << "Realunching gStreamer after crash..." << std::endl;
 		gstreamer_pid = runCommandAsync(gstreamer_command);
 	}
@@ -299,10 +299,15 @@ void Streamer::dsListener() {
 		handlingLaunchRequest = true;
 		killGstreamerInstance();
  
-		char bitrate[16];
-		this->bitrate=bitrate;
-		ssize_t len = read(clientFd, bitrate, sizeof(bitrate)-1);
-		bitrate[len] = '\0';
+		char bitrateStr[16];
+		ssize_t len = read(clientFd, bitrateStr, sizeof(bitrateStr)-1);
+		bitrateStr[len] = '\0';
+		int bitrate = atoi(bitrateStr);
+		if (bitrate <= 0) {
+			std::cerr << "Invalid bitrate, setting to 1,000,000";
+			bitrate = 1000000;
+		}
+		this->bitrate = bitrate;
 		
 		const char message[] = "Launching remote GStreamer...\n";
 		if (write(clientFd, message, sizeof(message)) == -1) {
@@ -322,7 +327,7 @@ void Streamer::dsListener() {
 
 		//vector<string> outputVideoDevs = cameraDevs;
 		//outputVideoDevs[0] = loopbackDev;
-		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
+		launchGStreamer(correctedWidth, correctedHeight, strAddr, bitrate, "5809", loopbackDev);
 		handlingLaunchRequest = false;
 	}
 }
@@ -599,7 +604,7 @@ string Streamer::controlMessage(string camera_string, string command){
 			restartWriter(); //Work Please
 			if (relaunchingGstreamer) {
 				std::cout << "Restarting new gstreamer stream..." << std::endl;
-				launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
+				launchGStreamer(correctedWidth, correctedHeight, strAddr.c_str(), bitrate, "5809", loopbackDev);
 			}		
 			handlingLaunchRequest=false;
 		}
