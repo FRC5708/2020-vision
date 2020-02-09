@@ -57,61 +57,32 @@ Streamer streamer(visionFrameNotifier);
 // recieves enable/disable signals from the RIO to conserve thermal capacity
 // Also allows control packets to be sent to modify camera values.
 // Also sets exposure when actively driving to target
-void ControlSocket() { //This is obsolete and should be removed, in favour of ControlPacketReceiver's implementation. !!TODO:
-	struct addrinfo hints;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;   /* For wildcard IP address */
+string parseControlMessage(string message) {
+	
+	std::stringstream status=std::stringstream("");
 
-	struct addrinfo *result;
-
-	int error = getaddrinfo(nullptr, "5805", &hints, &result);
-	if (error != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+	unsigned int indexOfDelimiter=message.find(':');
+	if (indexOfDelimiter == string::npos 
+	&& message[message.length() - 1] == '\n') {
+		indexOfDelimiter = message.length() - 1;
 	}
-
-	int sockfd;
-	for (struct addrinfo *rp = result; rp != NULL; rp = rp->ai_next) {
-			sockfd = socket(rp->ai_family, rp->ai_socktype,
-					rp->ai_protocol);
-		if (sockfd != -1) {
-
-			if (bind(sockfd, rp->ai_addr, rp->ai_addrlen) == 0) break;
-			else {
-				perror("failed to bind to control socket");
-				close(sockfd);
-				sockfd = -1;
-			}
+	std::string command=message.substr(0,indexOfDelimiter);
+		if (command == "reset" || command == "resolution") {
+			if(indexOfDelimiter >= message.length()){
+			//There just isn't a : in there.
+			return "UNPARSABLE MESSAGE (No colon-seperator)\n";
 		}
+		string arguments = message.substr(indexOfDelimiter+1,string::npos);
+		
+		return streamer.parseControlMessage(command, arguments);
 	}
-	freeaddrinfo(result);
-
-	if (sockfd == -1) {
-		std::cerr << "could not connect to control socket" << std::endl;
-		return;
-	}
-	fcntl(sockfd, F_SETFD, fcntl(sockfd, F_GETFD) | FD_CLOEXEC);
-
-	while (true) {
-		char buf[66537];
-		ssize_t recieveSize = recvfrom(sockfd, buf, sizeof(buf) - 1, 
-		0, nullptr, nullptr);
-		if (recieveSize > 0) {
-			buf[recieveSize] = '\0';
-			cout << buf << endl;
-			string msgStr(buf);
-			if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
-			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
-			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
-			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
-
-		}
-		else if (recieveSize < 0) {
-			perror("control data recieve error");
-		}
-		else std::cerr << "empty packet??" << std::endl;
-	}
+	else if (command == "visionEnable") visionEnabled = true;
+	else if (command == "visionDisable") visionEnabled = false;
+	else if (command == "lowExposureOn") streamer.setLowExposure(true);
+	else if (command == "lowExposureOff") streamer.setLowExposure(false);
+	else return "Invalid command " + command + "\n";
+	
+	return "Success\n";
 }
 
 void VisionThread() {
@@ -327,7 +298,7 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
-	ControlPacketReceiver receiver=ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
-	ControlSocket();//Obsolete, should be removed and functionality moved into ControlPacketReceiver. //Blocks main thread!
+	ControlPacketReceiver receiver=ControlPacketReceiver(&parseControlMessage,5805);
+	while (true) sleep(INT_MAX);
 	return 0;
 }

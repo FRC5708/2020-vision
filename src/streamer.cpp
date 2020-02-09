@@ -517,8 +517,8 @@ void Streamer::pushFrame(int i) {
 	frameLock.unlock();
 }
 
-string Streamer::parseControlMessage(char * message){
-	/*Control message syntax: Camerano1,[camerano2,...]:CONTROL MESSAGE
+string Streamer::parseControlMessage(string command, string arguments){
+	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...]
 	**Returned status syntax: 
 	**	Camerano1:RETNO:STATUS MESSAGE
 	**  Camerano2:RETNO:STATUS MESSAGE
@@ -528,19 +528,11 @@ string Streamer::parseControlMessage(char * message){
 	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
 	*/
 	std::stringstream status=std::stringstream("");
+	std::stringstream argumentStream(arguments);
 
-	string commandMessage=string(message);
-	unsigned int indexOfDelimiter=commandMessage.find(':');
-	if(indexOfDelimiter==string::npos){
-		//There just isn't a : in there.
-		return "UNPARSABLE MESSAGE (No colon-seperator)";
-	}
-	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
-	string command=commandMessage.substr(indexOfDelimiter+1,string::npos);
-	command=command.substr(0,command.length()-1); //Chop off the null character. We don't want that floating around.
 	std::string buffer;
 	std::vector<string> cameras;
-	while(getline(cameraSegment,buffer,',')){
+	while(getline(argumentStream,buffer,',')){
 		cameras.push_back(buffer);
 	}
 	if(cameras.size()==0){
@@ -555,14 +547,7 @@ string Streamer::parseControlMessage(char * message){
 
 }
 string Streamer::controlMessage(string camera_string, string command){
-	/*TODO: implement
-	**     if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
-			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
-			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
-			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
-	** from obsolete function in main
-	*/		
-
+	
 	std::stringstream status=std::stringstream("");
 	int cam_no;
 	ThreadedVideoReader* camera=nullptr;

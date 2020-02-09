@@ -88,7 +88,7 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
-	std::string parseControlMessage(char * commandMessage); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
+	std::string parseControlMessage(std::string command, std::string arguments); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
 	std::string controlMessage(std::string camera, std::string command);
 };
 extern int clientFd;
