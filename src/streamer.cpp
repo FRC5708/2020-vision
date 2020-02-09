@@ -52,8 +52,12 @@ void Streamer::handleCrash(pid_t pid) {
 		gstreamer_pid = runCommandAsync(gstreamer_command);
 	}
 }
-Streamer::Streamer(std::function<void(void)> callback){
-	visionFrameNotifier=callback;
+Streamer::Streamer(std::function<void(void)> visionFrameNotifier_callback){
+	visionFrameNotifier=visionFrameNotifier_callback;
+}
+Streamer::Streamer(std::function<void(void)> visionFrameNotifier_callback,std::function<void(cv::Mat)> annotateFrame_callback){
+	visionFrameNotifier=visionFrameNotifier_callback;
+	annotateFrame=annotateFrame_callback;
 }
 
 void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {

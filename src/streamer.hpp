@@ -64,13 +64,14 @@ class Streamer {
 
 public:
 	Streamer(std::function<void(void)>);
+	Streamer(std::function<void(void)>,std::function<void(cv::Mat)>);
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
 	int getVisionCameraWidth() { return visionCamera->getWidth(); }
 	int getVisionCameraHeight() { return visionCamera->getHeight(); }
 	void calculateOutputWidth(); //Calculates and updates values of outputWidth, outputHeight
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
-	void (*annotateFrame)(cv::Mat) = nullptr;
+	std::function<void(cv::Mat)> annotateFrame;
 	
 	// Initializes streamer, scanning for cameras and setting up a socket that listens for the client
 	void start();
