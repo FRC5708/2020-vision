@@ -51,8 +51,9 @@ auto currentFrameTime = timing_clock.now();
 // c++ doesn't have real semaphores, so we must use the jank condition_variable to synchronize threads.
 std::mutex waitMutex; 
 std::condition_variable condition;
-void visionFrameNotifier(); //Declared later in namespace
-Streamer streamer(visionFrameNotifier);
+void visionFrameNotifier(); //Declared later
+void drawTargets(cv::Mat); //Declared later
+Streamer streamer(visionFrameNotifier,drawTargets);
 
 // recieves enable/disable signals from the RIO to conserve thermal capacity
 // Also allows control packets to be sent to modify camera values.
@@ -289,8 +290,6 @@ int main(int argc, char** argv) {
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 	signal(SIGPIPE, SIG_IGN);
-
-	streamer.annotateFrame = drawTargets;
 
 	streamer.start();
 
