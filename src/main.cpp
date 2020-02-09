@@ -27,6 +27,11 @@
 #include "streamer.hpp"
 
 #include "DataComm.hpp"
+#include "ControlPacketReceiver.hpp"
+
+#include <dlfcn.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include <dlfcn.h>
 #include <stdio.h>
@@ -50,8 +55,9 @@ void visionFrameNotifier(); //Declared later in namespace
 Streamer streamer(visionFrameNotifier);
 
 // recieves enable/disable signals from the RIO to conserve thermal capacity
+// Also allows control packets to be sent to modify camera values.
 // Also sets exposure when actively driving to target
-void ControlSocket() {
+void ControlSocket() { //This is obsolete and should be removed, in favour of ControlPacketReceiver's implementation. !!TODO:
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
@@ -108,7 +114,6 @@ void ControlSocket() {
 }
 
 void VisionThread() {
-	// give this thread a lower priority
 	errno = 0;
 	nice(5);
 	if (errno != 0) perror("nice");
@@ -132,14 +137,14 @@ void VisionThread() {
 	}
 }
 
-void setDefaultCalibParams() {
+void setDefaultCalibParams() { //Is this accurate?
 	calib::width = 1280; calib::height = 720;
 	
 	// Old cameras' FOV is 69°, new camera is 78°
 	//constexpr double radFOV = (69.0/180.0)*M_PI;
 	constexpr double radFOV = (78.0/180.0)*M_PI;
 	const double pixFocalLength = tan((M_PI_2) - radFOV/2) * sqrt(pow(calib::width, 2) + pow(calib::height, 2))/2; // pixels. Estimated from the camera's FOV spec.
-	
+
 	static double cameraMatrixVals[] {
 		pixFocalLength, 0, ((double) calib::width)/2,
 		0, pixFocalLength, ((double) calib::height)/2,
@@ -213,10 +218,6 @@ bool fileIsImage(char* file) {
 	for (auto & c: extension) c = toupper(c);
 	return extension == "PNG" || extension == "JPG" || extension == "JPEG";
 }
-
-void chldHandler(int sig, siginfo_t *info, void *ucontext) {
-	streamer.handleCrash(info->si_pid);
-}
 void drawTargets(cv::Mat drawOn) {
 	drawVisionPoints(lastResults.drawPoints, drawOn);
     /*	
@@ -244,6 +245,9 @@ void visionFrameNotifier(){
 		waitMutex.unlock();
 		condition.notify_one();
 	}
+}
+void chldHandler(int sig, siginfo_t *info, void *ucontext) {
+	streamer.handleCrash(info->si_pid);
 }
 int main(int argc, char** argv) {
 	// Enable or disable verbose output
@@ -285,7 +289,7 @@ int main(int argc, char** argv) {
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART | SA_NOCLDSTOP | SA_SIGINFO;
 	sa.sa_sigaction = &chldHandler;
-	if (sigaction(SIGCHLD, &sa, 0) == -1) {
+	if (sigaction(SIGCHLD, &sa, 0) == -1) {//Note: we have a *lot* of different threads running now. What if something other than gstreamer crashes? - The handler checks the crashed pid to make sure it's gstreamer, and threads within the same process don't send SIGCHLD
 		perror("sigaction");
 		exit(1);
 	}
@@ -309,9 +313,8 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
-	std::thread controlSockThread(&ControlSocket);
-    //std::thread visThread(&VisionThread);
-	VisionThread();
-
+	ControlPacketReceiver receiver=ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
+    VisionThread();
+        
 	return 0;
 }

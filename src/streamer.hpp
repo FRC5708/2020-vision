@@ -9,18 +9,18 @@
 
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
+#include <string>
 
 // Starts and manages gStreamer processes
 // Also intercepts the video stream from one camera to feed into vision processing
 class Streamer {	
 	cv::Mat image;
+	std::string strAddr;
+	int bitrate;
 
-	// Holds info about one gStreamer process. 
-	struct GstInstance {
-		pid_t pid;
-		std::string command;
-	};
-	std::vector<GstInstance> gstInstances;
+
+	pid_t gstreamer_pid=0;
+	std::string gstreamer_command; //Do we actually need/want this to be saved?
 	
 	volatile bool handlingLaunchRequest = false;
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
@@ -54,15 +54,18 @@ class Streamer {
 	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
 	int frameCount = 0;
 	std::vector<int> cameraFrameCounts;
-	
+	void setupCameras(); //Set up the cameras. (Only called once)
 	void setupFramebuffer();
+	void restartWriter();
+	void killGstreamerInstance();//Kill the previous instance of gsteamer, that we may start anew.
 
 
 public:
 	Streamer(std::function<void(void)>);
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
-	int getVisionCameraWidth() { return visionCamera->width; }
-	int getVisionCameraHeight() { return visionCamera->height; }
+	int getVisionCameraWidth() { return visionCamera->getWidth(); }
+	int getVisionCameraHeight() { return visionCamera->getHeight(); }
+	void calculateOutputWidth(); //Calculates and updates values of outputWidth, outputHeight
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
@@ -83,8 +86,10 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
-	
-	std::string visionCameraName;
+	std::string parseControlMessage(char * commandMessage); //Callback function passed into ControlPacketReceiver. Parses control messages to send to appropriate camera/s
+	std::string controlMessage(std::string camera, std::string command);
+    
+    std::string visionCameraName;
 };
 extern int clientFd;
 

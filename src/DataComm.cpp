@@ -66,8 +66,8 @@ void DataComm::setupSocket() {
     fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
 }
 DataComm::DataComm(const char* client_name, const char* port="5808") : client_name(client_name) {
-    setupSocket();
     this->port=port;
+    setupSocket();
 }
 
 
