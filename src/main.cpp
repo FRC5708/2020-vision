@@ -249,6 +249,17 @@ void annotateFrame(cv::Mat& drawOn) {
 		drawVisionPoints(i->drawPoints, drawOn);
 	}
 
+	cv::putText(
+		drawOn,
+		"-Vision-",
+		{50,50},
+		1,
+		2,
+		{0,128},
+		1,
+		8
+	);
+
 	//Draw targeting reticle
 	{
 		bool targetLock=isTargetLocked(); //Are we good 
@@ -256,7 +267,7 @@ void annotateFrame(cv::Mat& drawOn) {
 			drawOn, //Target Matrix
 			{drawOn.cols/5,drawOn.rows/5}, //Upper-left point
 			{drawOn.cols-drawOn.cols/5,drawOn.rows-drawOn.rows/5}, //Lower-right point
-			{0,(targetLock ? 255: 128)}, //Green if targetLock, black otherwise.
+			{0,(double) (targetLock ? 0: 128)}, //Green if targetLock, black otherwise.
 			2 //Line thickness (pixels)
 		);
 	}
