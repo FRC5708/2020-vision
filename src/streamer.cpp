@@ -542,7 +542,7 @@ string Streamer::parseControlMessage(string command, string arguments){
 		}catch(std::exception){
 			status << buffer <<  ":-1:INVALID CAMERA NO" << '\n';
 		}
-	}
+	} 
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
 		return "UNPARSABLE MESSAGE (No cameras specified)\n";
