@@ -28,7 +28,7 @@ ControlPacketReceiver::ControlPacketReceiver(std::function<std::string(std::stri
 
 void ControlPacketReceiver::start(){
     int retval=setupSocket();
-    std::cout << "@setupSocket: " << retval << std::endl;
+	if(retval!=0) std::cerr << "ControlPacketReceiver::setupSocket() returned status " << retval << std::endl;
     receiverThread=std::thread(&ControlPacketReceiver::receivePackets,this);
 }
 int ControlPacketReceiver::setupSocket(){
@@ -64,7 +64,6 @@ int ControlPacketReceiver::setupSocket(){
 }
 
 void ControlPacketReceiver::receivePackets(){
-    std::cout << "@ReceivePackets thread started" << std::endl;
     while (!destroyReceiver) {
 		std::cout << "Listening for control packet sender..." << std::endl;
 		struct sockaddr_in6 clientAddr;

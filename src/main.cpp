@@ -168,7 +168,7 @@ void changeCalibResolution(int width, int height) {
 
 	calib::width = width; calib::height = height;
 	
-	cout << "camera matrix set to: " << calib::cameraMatrix << endl;
+	cout << "Vision camera matrix set to: \n" << calib::cameraMatrix << endl;
 }
 
 // Test the vision system, feeding it a static image.
