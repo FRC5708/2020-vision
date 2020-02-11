@@ -245,7 +245,9 @@ int main(int argc, char** argv) {
 		else readCalibParams(argv[1]);
 	}
 	else if (argc == 1) {
-		if (!readCalibParams("/home/pi/vision-code/calib_data/logitech_c920.xml", false)) {
+		//We use a hardcoded calib data file path. We are ~always~ going to use the C920 for vision. 
+		//TODO(?): Make Camera calibration dynamic based on the camera name and serial number.
+		if (!readCalibParams("/home/pi/calib_data/C920_99EDB55F.xml", false)) {
 			setDefaultCalibParams();
 		}
 	}
