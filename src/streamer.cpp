@@ -187,6 +187,7 @@ void Streamer::setupCameras(){
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
+		std::cout << "DEBUG: cameraReaders pushed back " << i << std::endl;
 	}
 }
 void Streamer::calculateOutputSize(){
@@ -514,29 +515,50 @@ void Streamer::pushFrame(int i) {
 }
 
 string Streamer::parseControlMessage(string command, string arguments){
-	std::stringstream status=std::stringstream("");
-	std::stringstream argumentStream(arguments);
 
-	unsigned int camera;
-	std::vector<int> cameras;
-	int idxAfterLastCamNum = 0;
-	while(argumentStream >> camera){
-		cameras.push_back(camera);
-		idxAfterLastCamNum = argumentStream.tellg();
-		argumentStream.ignore(std::numeric_limits<std::streamsize>::max(), ',');
+	std::stringstream status=std::stringstream("");
+
+	std::string camera_string;
+	std::string parameters;
+
+	size_t delimiter_index = arguments.find(':');
+	camera_string=arguments.substr(0,delimiter_index);
+	if(delimiter_index==string::npos || delimiter_index==arguments.length()-1){
+		//Either the delimiter doesn't exist, or it's at the end of the string with nothing after it.
+		parameters="";
+	}else{
+		parameters=arguments.substr(delimiter_index+1,string::npos);
+		//(Yes, this entire if statement is technically redundant, as trying to read from string::npos as a start will return an empty substr.)
+		//However, that requires knowing specifics of string implementation that would be confusing to have to decypher. 
+	}
+	std::stringstream cameraSegment=std::stringstream(camera_string);
+	std::string buffer;
+	std::vector<unsigned int> cameras;
+	while(getline(cameraSegment,buffer,',')){
+		unsigned int cam_no;
+		try{
+			cam_no=std::stoi(buffer);
+			cameras.push_back(cam_no);
+		}catch(std::exception){
+			status << buffer <<  ":-1:INVALID CAMERA NO" << '\n';
+		}
 	}
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
 		return "UNPARSABLE MESSAGE (No cameras specified)\n";
 	}
 	for(int i : cameras){
-		string return_status=controlMessage(i,command, arguments.substr(idxAfterLastCamNum, string::npos));
+		if(i>=cameraReaders.size()){
+			status << i << ":-1:INVALID CAMERA NO" << "\n";
+			continue;
+		}
+		string return_status=controlMessage(i,command, parameters);
 		status << i << ":" << return_status << "\n";
 	}
 	return status.str(); //Delightful.
 
 }
-string Streamer::controlMessage(int cam_no, string command, string arguments){
+string Streamer::controlMessage(unsigned int cam_no, string command, string parameters){
 	
 	std::stringstream status=std::stringstream("");
 	ThreadedVideoReader* camera = cameraReaders.at(cam_no).get();
@@ -544,7 +566,8 @@ string Streamer::controlMessage(int cam_no, string command, string arguments){
 	//Resolution command
 	if(command=="resolution"){
 		frameLock.lock(); //Spooky bad times here.
-		std::stringstream toParse=std::stringstream(arguments);
+		std::cout << "@PARAMS:" << parameters << std::endl;
+		std::stringstream toParse=std::stringstream(parameters);
 		unsigned int width,height;
 		toParse >> width;
 		toParse >> height;
@@ -577,7 +600,7 @@ string Streamer::controlMessage(int cam_no, string command, string arguments){
 	}else if(command == "reset"){
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset(true);
-		return status.str();
+		return "0:RESET";
 	}
 	else{
 		status << "-1:Unrecognized command \"" << command << "\"\n";

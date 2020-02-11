@@ -70,6 +70,9 @@ string parseControlMessage(string message) {
 			return "UNPARSABLE MESSAGE (No colon-seperator)\n";
 		}
 		string arguments = message.substr(indexOfDelimiter+1,string::npos);
+		if(arguments[arguments.length()-1]=='\n'){
+			arguments=arguments.substr(0,arguments.length()-1); //Chop the newline off
+		}
 		
 		return streamer.parseControlMessage(command, arguments);
 	}

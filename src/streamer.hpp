@@ -102,7 +102,7 @@ public:
 	*/
 	std::string parseControlMessage(std::string command, std::string arguments); 
 private:
-	std::string controlMessage(int camera, std::string command, std::string arguments);
+	std::string controlMessage(unsigned int camera, std::string command, std::string parameters);
 };
 extern int clientFd;
 
