@@ -127,7 +127,6 @@ void setDefaultCalibParams() {
 	// distCoeffs is empty matrix
 }
 bool readCalibParams(const std::string path) {
-	cout << "Reading calibration data from " << path << endl;
 	cv::FileStorage calibFile;
 	calibFile.open(path.c_str(), cv::FileStorage::READ);
 	if (!calibFile.isOpened()) {

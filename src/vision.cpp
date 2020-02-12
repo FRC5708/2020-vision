@@ -339,7 +339,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 
 	SolvePnpResult* resultUsing = nullptr;
 	
-	std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
+	if (verboseMode) std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
 		 << "result2: err:" << result1.pixError << " x:" << result2.tvec.at<double>(0) << " y:" << result2.tvec.at<double>(1) << " z:" << result2.tvec.at<double>(2) << "\n"
 		  << "maxError:" << pixMaxError << std::endl;
 

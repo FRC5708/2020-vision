@@ -118,7 +118,7 @@ vector<string> getLoopbackDevices() {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"C920", "C525", "C615"
+	"C920_99EDB55F", "C615_603161B0", "C615_F961A370", "C525_5FC6DE20"
 };
 
 void Streamer::start() {
