@@ -105,7 +105,7 @@ void VisionThread() {
 		// currentFrameTime serves as a unique marker for this frame
 		lastFrameTime = currentFrameTime;
 		lastResults = doVision(streamer.getBGRFrame());
-		
+				
 		if (lastResults.calcs.distance != 0) rioComm.sendData(lastResults.calcs, lastFrameTime);		
 	}
 }
@@ -176,14 +176,8 @@ void doImageTesting(const char* path) {
 	cout << "image size: " << image.cols << 'x' << image.rows << endl;
 	changeCalibResolution(image.cols, image.rows);
 
-	auto te = doVision(image);
+	doVision(image);
 	cout << "Testing Path: " << path << std::endl;
-	/*for(auto &i:te){
-		auto calc=i.calcs;
-		cout << "Portland: " << calc.isPort << " Distance: " << calc.distance << " tape: " << calc.tapeAngle << " robot: " << calc.robotAngle << std::endl;
-		cout << "L: " << i.left.x << ":" << i.left.y << " " << i.left.width << "," << i.left.height
-		<< " R: " << i.right.x << ":" << i.right.y << " " << i.right.width << "," << i.right.height << std::endl;
-	}*/
 }
 bool fileIsImage(char* file) {
 	string path(file);

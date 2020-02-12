@@ -422,7 +422,7 @@ VisionTarget doVision(cv::Mat image) {
     //convert lines to contours
     std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
     
-    cout << "Found " << conts.size() << " contours" << std::endl; 
+    if (verboseMode) cout << "Found " << conts.size() << " contours" << std::endl; 
 	
 	std::vector<ProcessPointsResult> results;   
     for(auto c : conts){

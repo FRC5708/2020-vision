@@ -87,6 +87,8 @@ public:
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
 	
+	std::string visionCameraName;
+	
 	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...] 
 	**Returned status syntax: 
 	**	Camerano1:RETNO:STATUS MESSAGE
@@ -101,8 +103,6 @@ public:
 	std::string parseControlMessage(std::string command, std::string arguments); 
 private:
 	std::string controlMessage(unsigned int camera, std::string command, std::string parameters);
-    
-    std::string visionCameraName;
 };
 extern int clientFd;
 
