@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
 #include <unistd.h>
 #include <math.h>
 #include <string>
@@ -30,11 +31,7 @@
 #include "ControlPacketReceiver.hpp"
 
 #include <dlfcn.h>
-#include <stdio.h>
-#include <unistd.h>
 
-#include <dlfcn.h>
-#include <stdio.h>
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
@@ -54,63 +51,39 @@ std::condition_variable condition;
 void visionFrameNotifier(); //Declared later in namespace
 Streamer streamer(visionFrameNotifier);
 
-// recieves enable/disable signals from the RIO to conserve thermal capacity
-// Also allows control packets to be sent to modify camera values.
-// Also sets exposure when actively driving to target
-void ControlSocket() { //This is obsolete and should be removed, in favour of ControlPacketReceiver's implementation. !!TODO:
-	struct addrinfo hints;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;   /* For wildcard IP address */
+//Callback function passed into ControlPacketReceiver.
+// recieves enable/disable signals from the RIO to conserve thermal capacity.
+// Also sets exposure when actively driving to target.
+// Also allows control packets to be sent to modify camera values. (See streamer.hpp:parseControlMessage() for more information)
+string parseControlMessage(string message) {
+	
+	std::stringstream status=std::stringstream("");
 
-	struct addrinfo *result;
-
-	int error = getaddrinfo(nullptr, "5805", &hints, &result);
-	if (error != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+	unsigned int indexOfDelimiter=message.find(':');
+	if (indexOfDelimiter == string::npos 
+	&& message[message.length() - 1] == '\n') {
+		indexOfDelimiter = message.length() - 1;
 	}
-
-	int sockfd;
-	for (struct addrinfo *rp = result; rp != NULL; rp = rp->ai_next) {
-			sockfd = socket(rp->ai_family, rp->ai_socktype,
-					rp->ai_protocol);
-		if (sockfd != -1) {
-
-			if (bind(sockfd, rp->ai_addr, rp->ai_addrlen) == 0) break;
-			else {
-				perror("failed to bind to control socket");
-				close(sockfd);
-				sockfd = -1;
-			}
+	std::string command=message.substr(0,indexOfDelimiter);
+		if (command == "reset" || command == "resolution") {
+			if(indexOfDelimiter >= message.length()){
+			//There just isn't a : in there.
+			return "UNPARSABLE MESSAGE (No colon-seperator)\n";
 		}
-	}
-	freeaddrinfo(result);
-
-	if (sockfd == -1) {
-		std::cerr << "could not connect to control socket" << std::endl;
-		return;
-	}
-	fcntl(sockfd, F_SETFD, fcntl(sockfd, F_GETFD) | FD_CLOEXEC);
-
-	while (true) {
-		char buf[66537];
-		ssize_t recieveSize = recvfrom(sockfd, buf, sizeof(buf) - 1, 
-		0, nullptr, nullptr);
-		if (recieveSize > 0) {
-			buf[recieveSize] = '\0';
-			cout << buf << endl;
-			string msgStr(buf);
-			if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
-			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
-			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
-			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
+		string arguments = message.substr(indexOfDelimiter+1,string::npos);
+		if(arguments[arguments.length()-1]=='\n'){
+			arguments=arguments.substr(0,arguments.length()-1); //Chop the newline off
 		}
-		else if (recieveSize < 0) {
-			perror("control data recieve error");
-		}
-		else std::cerr << "empty packet??" << std::endl;
+		
+		return streamer.parseControlMessage(command, arguments);
 	}
+	else if (command == "visionEnable") visionEnabled = true;
+	else if (command == "visionDisable") visionEnabled = false;
+	else if (command == "lowExposureOn") streamer.setLowExposure(true);
+	else if (command == "lowExposureOff") streamer.setLowExposure(false);
+	else return "Invalid command " + command + "\n";
+	
+	return "Success\n";
 }
 
 void VisionThread() {
@@ -137,7 +110,7 @@ void VisionThread() {
 	}
 }
 
-void setDefaultCalibParams() { //Is this accurate?
+void setDefaultCalibParams() {
 	calib::width = 1280; calib::height = 720;
 	
 	// Old cameras' FOV is 69°, new camera is 78°
@@ -192,7 +165,7 @@ void changeCalibResolution(int width, int height) {
 
 	calib::width = width; calib::height = height;
 	
-	cout << "camera matrix set to: " << calib::cameraMatrix << endl;
+	cout << "Vision camera matrix set to: \n" << calib::cameraMatrix << endl;
 }
 
 // Test the vision system, feeding it a static image.
@@ -321,8 +294,7 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
-	ControlPacketReceiver receiver=ControlPacketReceiver(std::bind(&Streamer::parseControlMessage,&streamer,std::placeholders::_1),58000);
+	ControlPacketReceiver receiver=ControlPacketReceiver(&parseControlMessage,5805);
     VisionThread();
-        
 	return 0;
 }

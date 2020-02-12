@@ -72,14 +72,13 @@ bool VideoReader::tryOpenReader(bool isClosed) {
 		perror("Setting framerate: VIDIOC_G_PARM");
 	}
 	else {
-		std::cout << "Attempting to maximize framerate by setting frame time to 1/120" << std::endl;
 		streamparm.parm.capture.capturemode |= V4L2_CAP_TIMEPERFRAME;
 		streamparm.parm.capture.timeperframe.numerator = 1;
 		streamparm.parm.capture.timeperframe.denominator = 1000;
 		if(ioctl(camfd, VIDIOC_S_PARM, &streamparm) !=0) {
 			perror("Setting framerate: VIDIOC_S_PARM");
 		}
-		else std::cout << "Frame time is: " << streamparm.parm.capture.timeperframe.numerator 
+		else std::cout << "Frame time for " << deviceFile << " is: " << streamparm.parm.capture.timeperframe.numerator 
 		<< "/" << streamparm.parm.capture.timeperframe.denominator << std::endl;
 	}
 
@@ -94,7 +93,6 @@ bool VideoReader::tryOpenReader(bool isClosed) {
 	}
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
 
-	std::cout << "buffer count: " << bufrequest.count << std::endl;
 	buffers.resize(bufrequest.count);
 	
 
@@ -224,11 +222,14 @@ void VideoReader::queryResolutions(){
 		capability.index++; //Increment the thing.
 		// ^ the most unhelpful comment ever
 	}
-	for(auto &i : resolutions){
+	std::stringstream resolution_stream;  //If we just directly cout, then the different threads print their resolutions in an intersperced manner. 
+	resolution_stream << "Supported Resolutions for camera " << deviceFile << ":" << std::endl;
+	for(auto &i : resolutions){	
 		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
-			std::cout << "Resolution: " << i.discrete.width << " : " << i.discrete.height << std::endl;
+			resolution_stream << "Discrete: " << i.discrete.width << " : " << i.discrete.height << std::endl;
 		}
 	}
+	std::cout << resolution_stream.str(); //Print the entire resolution list in one go, for thread safety.
 }
 
 cv::Mat VideoReader::getMat() {

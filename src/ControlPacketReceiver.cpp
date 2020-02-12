@@ -20,7 +20,7 @@
 #include <string>
 
 
-ControlPacketReceiver::ControlPacketReceiver(std::function<std::string(char*)> parsePacketCallback,short port){
+ControlPacketReceiver::ControlPacketReceiver(std::function<std::string(std::string)> parsePacketCallback,short port){
 	this->port=port;
 	this->parsePacketCallback=parsePacketCallback;
 	start();
@@ -28,7 +28,7 @@ ControlPacketReceiver::ControlPacketReceiver(std::function<std::string(char*)> p
 
 void ControlPacketReceiver::start(){
     int retval=setupSocket();
-    std::cout << "@setupSocket: " << retval << std::endl;
+	if(retval!=0) std::cerr << "ControlPacketReceiver::setupSocket() returned status " << retval << std::endl;
     receiverThread=std::thread(&ControlPacketReceiver::receivePackets,this);
 }
 int ControlPacketReceiver::setupSocket(){
@@ -64,14 +64,15 @@ int ControlPacketReceiver::setupSocket(){
 }
 
 void ControlPacketReceiver::receivePackets(){
-    std::cout << "@ReceivePackets thread started" << std::endl;
     while (!destroyReceiver) {
-		std::cout << "Attempting to establish connection to control packet sender..." << std::endl;
+		std::cout << "Listening for control packet sender..." << std::endl;
 		struct sockaddr_in6 clientAddr;
 		socklen_t clientAddrLen = sizeof(clientAddr);
 		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
 		if (clientFd < 0) {
 			perror("accept");
+			// Don't spam the console
+			sleep(1);
 			continue;
 		}
 		std::cout << "Connection to controller established." << std::endl;
@@ -87,9 +88,8 @@ void ControlPacketReceiver::receivePackets(){
 			std::cout << "Received control message " << controlMessage << std::endl;
 			controlMessage[len] = '\0'; //Nullchar-delimit our message.
 			std::string status = parsePacketCallback(controlMessage); //Send the control packet to our external packet-parsing function.
-			const char * status_c_str = status.c_str();
-			std::cout << "Control Message status: \n" << status_c_str << std::endl;
-			int retval=write(clientFd,status_c_str,strlen(status_c_str));
+			std::cout << "Control Message status: \n" << status << std::endl;
+			int retval=write(clientFd,status.c_str(), status.length());
 			if(retval<0){
 				std::cout << "Connection to controller broken." << std::endl;
 				break;

@@ -123,7 +123,7 @@ vector<string> cameraNames = {
 
 void Streamer::start() {
 	setupCameras();
-	calculateOutputWidth();
+	calculateOutputSize();
 	setupFramebuffer();
 	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
 	initialized = true;	
@@ -188,9 +188,10 @@ void Streamer::setupCameras(){
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
+		std::cout << "DEBUG: cameraReaders pushed back " << i << std::endl;
 	}
 }
-void Streamer::calculateOutputWidth(){
+void Streamer::calculateOutputSize(){
 	switch (cameraDevs.size()) {
 	case 1:
 		outputWidth = cameraReaders[0]->getWidth(); outputHeight = cameraReaders[0]->getHeight();
@@ -315,19 +316,15 @@ void Streamer::dsListener() {
 			perror("write");
 		}
 		interceptStdio(clientFd, "Remote: ");
-
-		//if (close(clientFd) == -1) perror("close");
 		
 		// wait for client's gstreamer to initialize
-		sleep(2);
+		sleep(1);
 
 		char strAddr[INET6_ADDRSTRLEN];
 		this->strAddr=strAddr;
 		getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
 		0,0,NI_NUMERICHOST);
 
-		//vector<string> outputVideoDevs = cameraDevs;
-		//outputVideoDevs[0] = loopbackDev;
 		launchGStreamer(correctedWidth, correctedHeight, strAddr, bitrate, "5809", loopbackDev);
 		handlingLaunchRequest = false;
 	}
@@ -518,69 +515,60 @@ void Streamer::pushFrame(int i) {
 	frameLock.unlock();
 }
 
-string Streamer::parseControlMessage(char * message){
-	/*Control message syntax: Camerano1,[camerano2,...]:CONTROL MESSAGE
-	**Returned status syntax: 
-	**	Camerano1:RETNO:STATUS MESSAGE
-	**  Camerano2:RETNO:STATUS MESSAGE
-	**  ...
-	**If the original control message is completely unparseable, the return status is
-	**  UNPARSABLE MESSAGE
-	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
-	*/
+string Streamer::parseControlMessage(string command, string arguments){
+
 	std::stringstream status=std::stringstream("");
 
-	string commandMessage=string(message);
-	unsigned int indexOfDelimiter=commandMessage.find(':');
-	if(indexOfDelimiter==string::npos){
-		//There just isn't a : in there.
-		return "UNPARSABLE MESSAGE (No colon-seperator)";
+	std::string camera_string;
+	std::string parameters;
+
+	size_t delimiter_index = arguments.find(':');
+	camera_string=arguments.substr(0,delimiter_index);
+	if(delimiter_index==string::npos || delimiter_index==arguments.length()-1){
+		//Either the delimiter doesn't exist, or it's at the end of the string with nothing after it.
+		parameters="";
+	}else{
+		parameters=arguments.substr(delimiter_index+1,string::npos);
+		//(Yes, this entire if statement is technically redundant, as trying to read from string::npos as a start will return an empty substr.)
+		//However, that requires knowing specifics of string implementation that would be confusing to have to decypher. 
 	}
-	std::stringstream cameraSegment=std::stringstream(commandMessage.substr(0,indexOfDelimiter));
-	string command=commandMessage.substr(indexOfDelimiter+1,string::npos);
-	command=command.substr(0,command.length()-1); //Chop off the null character. We don't want that floating around.
+	std::stringstream cameraSegment=std::stringstream(camera_string);
 	std::string buffer;
-	std::vector<string> cameras;
+	std::vector<unsigned int> cameras;
 	while(getline(cameraSegment,buffer,',')){
-		cameras.push_back(buffer);
-	}
+		unsigned int cam_no;
+		try{
+			cam_no=std::stoi(buffer);
+			cameras.push_back(cam_no);
+		}catch(std::exception){
+			status << buffer <<  ":-1:INVALID CAMERA NO" << '\n';
+		}
+	} 
 	if(cameras.size()==0){
 		//We didn't actually get any camera numbers.
 		return "UNPARSABLE MESSAGE (No cameras specified)\n";
 	}
-	for(string &i : cameras){
-		string return_status=controlMessage(i,command);
+	for(int i : cameras){
+		if(i>=cameraReaders.size()){
+			status << i << ":-1:INVALID CAMERA NO" << "\n";
+			continue;
+		}
+		string return_status=controlMessage(i,command, parameters);
 		status << i << ":" << return_status << "\n";
 	}
 	return status.str(); //Delightful.
 
 }
-string Streamer::controlMessage(string camera_string, string command){
-	/*TODO: implement
-	**     if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
-			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
-			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
-			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
-	** from obsolete function in main
-	*/		
-
+string Streamer::controlMessage(unsigned int cam_no, string command, string parameters){
+	
 	std::stringstream status=std::stringstream("");
-	int cam_no;
-	ThreadedVideoReader* camera=nullptr;
-	//Make sure that we actually were given a valid camera.
-	try{
-		cam_no=stoi(camera_string);
-		camera=cameraReaders.at(cam_no).get();
-	}catch(...){
-		return "-1:INVALID CAMERA NO";
-	}
+	ThreadedVideoReader* camera = cameraReaders.at(cam_no).get();
 
 	//Resolution command
-	if(command.substr(0,10)=="resolution"){
+	if(command=="resolution"){
 		frameLock.lock(); //Spooky bad times here.
-		std::stringstream toParse=std::stringstream(command);
-		string buffer;
-		toParse >> buffer; //Dispose of the command name
+		std::cout << "@PARAMS:" << parameters << std::endl;
+		std::stringstream toParse=std::stringstream(parameters);
 		unsigned int width,height;
 		toParse >> width;
 		toParse >> height;
@@ -598,7 +586,7 @@ string Streamer::controlMessage(string camera_string, string command){
 				killGstreamerInstance();
 			}
 			std::cout << "Calculating modified output width..." << std::endl;
-			calculateOutputWidth();
+			calculateOutputSize();
 			std::cout << "Setting up framebuffer..." << std::endl;
 			setupFramebuffer();
 			std::cout << "Restarting Video Writer..." << std::endl;
@@ -610,13 +598,13 @@ string Streamer::controlMessage(string camera_string, string command){
 			handlingLaunchRequest=false;
 		}
 		frameLock.unlock();
-	}else if(command.substr(0,5)=="reset"){
+	}else if(command == "reset"){
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset(true);
-		return status.str();
+		return "0:RESET";
 	}
 	else{
-		status << "-1:Command \"" << command << "\" not implemented yet.";
+		status << "-1:Unrecognized command \"" << command << "\"\n";
 	}
 	return status.str();
 }
