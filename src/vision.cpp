@@ -434,6 +434,7 @@ VisionTarget doVision(cv::Mat image) {
         double contPerc = contArea/imageArea;
         if(contPerc > 0.01 && c.size() > 4){
             ContourCorners corners = getContourCorners(c);
+			if (!corners.valid) break;
             std::vector<cv::Point2f> cornerPoints;
             cornerPoints.push_back(corners.topleft); cornerPoints.push_back(corners.topright);
             cornerPoints.push_back(corners.bottomleft);cornerPoints.push_back(corners.bottomright);
@@ -454,7 +455,7 @@ VisionTarget doVision(cv::Mat image) {
                             results.push_back(result);
                         }
                     } catch(const cv::Exception& e){
-                        std::cout << "a cv::Exception was thrown" << std::endl;
+                        std::cout << e.what() << "was thrown by processPoints()" << std::endl;
                         continue;
                     }
                 

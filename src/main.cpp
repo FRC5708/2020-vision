@@ -175,7 +175,12 @@ void doImageTesting(const char* path) {
 	cout << "image size: " << image.cols << 'x' << image.rows << endl;
 	changeCalibResolution(image.cols, image.rows);
 
-	doVision(image);
+	try {
+		doVision(image);
+	}
+	catch (std::exception& e) {
+		std::cerr << "doVision threw " << e.what() << std::endl;
+	}
 	cout << "Testing Path: " << path << std::endl;
 }
 bool fileIsImage(char* file) {
