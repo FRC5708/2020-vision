@@ -36,7 +36,13 @@ constexpr double inchTapesHeight = 1*12 + 5;
 const double inchTapesWidthBottom = inchTapesWidthTop
  - 2*sqrt(pow(inchSideTapesLength, 2) - pow(inchTapesHeight, 2));
  
- constexpr double inchCameraHeightAboveGround = 5*12; // TODO: Set me to my actual value!
+// Offsets of the camera from the center of the robot. 
+// TODO: Set me to my actual value!
+constexpr double inchCameraHeightAboveGround = 5*12; 
+// Positive if the camera is on the left side of the robot
+constexpr double camLocalX = 0;
+// Positive if the camera is on the front side of the robot.
+constexpr double camLocalY = 0;
 
 struct ContourCorners {
 	cv::Point topleft, topright, bottomright, bottomleft;
@@ -258,8 +264,8 @@ struct SolvePnpResult {
 	
 	double pixError;
 	
-	// X, Y, and height are the robot's position in a coordinate system oriented so that the X axis is on the plane of the targets and the Y axis points out of the targets. X is right postive, Y is forwards positive, and height is up positive. the breakdown into X, Y, and height is often inaccurate. TotalDist is usually accurate.
-	double inchTotalDist, inchHeight, inchRobotX, inchRobotY;
+	// X, Y, and height are the camera's position in a coordinate system oriented so that the X axis is on the plane of the targets and the Y axis points out of the targets. X is right postive, Y is forwards positive, and height is up positive. the breakdown into X, Y, and height is often inaccurate. TotalDist is usually accurate.
+	double inchTotalDist, inchHeight, inchCameraX, inchCameraY;
 	
 	VisionData output;
 	bool valid;
@@ -279,27 +285,33 @@ struct SolvePnpResult {
 		cv::Mat rotation, translation;
 		invertPose(rvec, tvec, rotation, translation);
 		
-		inchRobotX = translation.at<double>(0);
-		inchRobotY = translation.at<double>(2);
+		inchCameraX = translation.at<double>(0);
+		inchCameraY = translation.at<double>(2);
 		inchHeight = -translation.at<double>(1);
-	`
-        //TO DO: Set these values to the camera position relative to the center of the robot
-        double camLocalX = 0;
-        double camLocalZ = 0;
-        double camLocalY = 0;
 
-		inchTotalDist = sqrt(pow(tvec.at<double>(0) - camLocalX, 2) + pow(tvec.at<double>(1) - camLocalY, 2) + pow(tvec.at<double>(2) - camLocalZ, 2));
+		inchTotalDist = sqrt(pow(tvec.at<double>(0), 2) + pow(tvec.at<double>(1), 2) + pow(tvec.at<double>(2), 2));
+
+		double inchGroundDistanceFromCamera = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
 		
-		output.distance = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
+		// The vector from the camera to a point directly below the target, in a plane parallel to the floor.
+		double inchGroundCameraX = tvec.at<double>(0);
+		double inchGroundCameraY = sqrt(pow(inchGroundDistanceFromCamera, 2) - pow(inchGroundCameraX, 2));
 		
-		output.tapeAngle = -atan2(inchRobotX, inchRobotY);
+		// The vector from the robot's center to a point directly below the target, in a plane parallel to the floor.
+		double inchRobotCenterX = inchGroundCameraX + camLocalX;
+		double inchRobotCenterY = inchGroundCameraY + camLocalY;
+				
+		output.distance = sqrt(pow(inchRobotCenterX, 2) + pow(inchRobotCenterY, 2));
+		output.robotAngle = -atan2(inchRobotCenterX, inchRobotCenterY);
+
+		// TODO: Make this relative to the robot's center instead of the camera
+		output.tapeAngle = -atan2(inchCameraX, inchCameraY);
 		
-
-
-		// I'm 90% sure that this works
-		output.robotAngle = -asin(tvec.at<double>(0) / output.distance);	
-
-
+		
+		// These are the old calcualtions that do not consider the camera's offset from the robot's center
+		//output.robotAngle = -asin(tvec.at<double>(0) / output.distance);
+		//output.distance = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
+		
 		valid = true;	
 	}
 
@@ -374,8 +386,8 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 
 /*
 	VisionData result;
-	result.distance = sqrt(pow(resultUsing->inchRobotX, 2) + pow(resultUsing->inchRobotY, 2));
-	result.tapeAngle = -atan2(resultUsing->inchRobotX, resultUsing->inchRobotY);
+	result.distance = sqrt(pow(resultUsing->inchCameraX, 2) + pow(resultUsing->inchCameraY, 2));
+	result.tapeAngle = -atan2(resultUsing->inchCameraX, resultUsing->inchCameraY);
 	result.robotAngle = -asin(resultUsing->tvec.at<double>(0) / result.distance);
 	*/
 
