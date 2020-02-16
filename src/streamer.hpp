@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
 #include <string>
@@ -29,7 +28,6 @@ class Streamer {
 	pid_t get_previous_gstreamer_pid(); //Get PID of previous gst instance if it exists, return 0 otherwise.
 	bool write_gstreamer_pid_to_file(); //Writes gstremer pid to file, returning false upon failure. TODO: IMPLEMENT ME!
 	std::vector<std::string> cameraDevs;
-
 	
 	std::string loopbackDev;
 
@@ -90,6 +88,8 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
+	
+	std::string visionCameraName;
 	
 	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...] 
 	**Returned status syntax: 

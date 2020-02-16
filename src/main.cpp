@@ -36,10 +36,11 @@
 using std::cout; using std::cerr; using std::endl; using std::string;
 
 
-// when false, drastically slows down vision processing for thermal reasons
-volatile bool visionEnabled = false;
+// when false, drastically slows down vision processing
+volatile bool visionEnabled = true;
 
-std::vector<VisionTarget> lastResults;
+VisionTarget lastResults;
+//std::vector<cv::Point> lastResults;
 
 std::chrono::steady_clock timing_clock;
 auto currentFrameTime = timing_clock.now();
@@ -92,33 +93,27 @@ void VisionThread() {
 
 	DataComm rioComm=DataComm("10.57.8.2", "5808");
 
-	
+	auto lastFrameTime = currentFrameTime;
 	while (true) {
-		// currentFrameTime serves as a unique marker for this frame
-		auto lastFrameTime = currentFrameTime;
-		lastResults = doVision(streamer.getBGRFrame());
-
-		//streamer.setDrawTargets(&lastResults);
-		
-		std::vector<VisionData> calcs;
-		calcs.reserve(lastResults.size());
-		for (auto i : lastResults) {
-			calcs.push_back(i.calcs);
-		} 
-		
-		rioComm.sendData(calcs, lastFrameTime);
 		
 		// If no new frame has come from the camera, wait.
 		if (lastFrameTime == currentFrameTime) {
 			std::unique_lock<std::mutex> uniqueWaitMutex(waitMutex);
 			condition.wait(uniqueWaitMutex);
 		}
+		
+		// currentFrameTime serves as a unique marker for this frame
+		lastFrameTime = currentFrameTime;
+		lastResults = doVision(streamer.getBGRFrame());
+				
+		if (lastResults.calcs.distance != 0) rioComm.sendData(lastResults.calcs, lastFrameTime);		
 	}
 }
 
 void setDefaultCalibParams() {
 	calib::width = 1280; calib::height = 720;
 	
+	// Old cameras' FOV is 69°, new camera is 78°
 	//constexpr double radFOV = (69.0/180.0)*M_PI;
 	constexpr double radFOV = (78.0/180.0)*M_PI;
 	const double pixFocalLength = tan((M_PI_2) - radFOV/2) * sqrt(pow(calib::width, 2) + pow(calib::height, 2))/2; // pixels. Estimated from the camera's FOV spec.
@@ -131,13 +126,12 @@ void setDefaultCalibParams() {
 	calib::cameraMatrix = cv::Mat(3, 3, CV_64F, cameraMatrixVals);
 	// distCoeffs is empty matrix
 }
-bool readCalibParams(const char* path, bool failHard = true) {
+bool readCalibParams(const std::string path) {
 	cv::FileStorage calibFile;
-	calibFile.open(path, cv::FileStorage::READ);
+	calibFile.open(path.c_str(), cv::FileStorage::READ);
 	if (!calibFile.isOpened()) {
 		std::cerr << "Failed to open camera data " << path << endl;
-		if (failHard) exit(1);
-		else return false;
+		return false;
 	}
 	
 	//setDefaultCalibParams();
@@ -160,9 +154,8 @@ bool readCalibParams(const char* path, bool failHard = true) {
 // change camera calibration to match resolution of incoming image
 void changeCalibResolution(int width, int height) {
 	assert(calib::cameraMatrix.type() == CV_64F);
-	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.01) {
+	if (fabs(calib::width / (double) calib::height - width / (double) height) > 0.03) {
 		cerr << "wrong aspect ratio recieved from camera! Vision will be borked!" << endl;
-		return;
 	}
 	calib::cameraMatrix.at<double>(0, 0) *= (width / (double) calib::width);
 	calib::cameraMatrix.at<double>(0, 2) *= (width / (double) calib::width);
@@ -182,14 +175,13 @@ void doImageTesting(const char* path) {
 	cout << "image size: " << image.cols << 'x' << image.rows << endl;
 	changeCalibResolution(image.cols, image.rows);
 
-	std::vector<VisionTarget> te = doVision(image);
-	cout << "Testing Path: " << path << std::endl;
-	for(auto &i:te){
-		auto calc=i.calcs;
-		cout << "Portland: " << calc.isPort << " Distance: " << calc.distance << " tape: " << calc.tapeAngle << " robot: " << calc.robotAngle << std::endl;
-		cout << "L: " << i.left.x << ":" << i.left.y << " " << i.left.width << "," << i.left.height
-		<< " R: " << i.right.x << ":" << i.right.y << " " << i.right.width << "," << i.right.height << std::endl;
+	try {
+		doVision(image);
 	}
+	catch (std::exception& e) {
+		std::cerr << "doVision threw " << e.what() << std::endl;
+	}
+	cout << "Testing Path: " << path << std::endl;
 }
 bool fileIsImage(char* file) {
 	string path(file);
@@ -198,10 +190,8 @@ bool fileIsImage(char* file) {
 	return extension == "PNG" || extension == "JPG" || extension == "JPEG";
 }
 void drawTargets(cv::Mat drawOn) {
-	for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
-		drawVisionPoints(i->drawPoints, drawOn);
-	}
-	
+	drawVisionPoints(lastResults.drawPoints, drawOn);
+    /*	
 	// draw thing to see if camera is updating
 	static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
 
@@ -212,9 +202,9 @@ void drawTargets(cv::Mat drawOn) {
 	{ drawOn.cols/2, drawOn.rows/2 }, 
 	{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
 	 { 0, 0 });
+    */
 }
 void visionFrameNotifier(){
-		
 // This function is called every new frame we get from the vision camera.
 // It wakes up the vision processing thread if it is waiting on a new frame.
 // if vision processing is disabled, it wakes up the thread only once every 2 seconds.
@@ -235,7 +225,7 @@ int main(int argc, char** argv) {
 	verboseMode = false;
 	
 	if (argc >= 3) {
-		readCalibParams(argv[1]);
+		if (!readCalibParams(argv[1])) exit(1);
 		doImageTesting(argv[2]);
 		return 0;
 	}
@@ -245,25 +235,40 @@ int main(int argc, char** argv) {
 			doImageTesting(argv[1]);
 			return 0;
 		}
-		else readCalibParams(argv[1]);
+		else {
+			if (!readCalibParams(argv[1])) exit(1);
+		}
 	}
 	else if (argc == 1) {
-		//We use a hardcoded calib data file path. We are ~always~ going to use the C920 for vision. 
-		//TODO(?): Make Camera calibration dynamic based on the camera name and serial number.
-		if (!readCalibParams("/home/pi/calib_data/C920_99EDB55F.xml", false)) {
-			setDefaultCalibParams();
-		}
+		// Load camera-specific params after we know which camera we're using
+		setDefaultCalibParams();
 	}
 	else {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
+	
 
-	// Kill other instances of the program and its children that might be hanging around
-	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
+	// Kill other instances of the program
+	pid_t myPid = getpid();
+	FILE* pidsStream = popen("pgrep 5708-vision", "r");
+	char* pidString = nullptr;
+	size_t lineAlloced = 0;
+	bool killedPrevious = false;
+	while (getline(&pidString, &lineAlloced, pidsStream) > 0) {
+		
+		pid_t otherPid = atoi(pidString);
+		if (otherPid > 0 && otherPid != myPid){
+			kill(otherPid, SIGTERM);
+			std::cout << "Killed older instance of 5708-vision " << otherPid << std::endl;
+			killedPrevious = true;
+		} 
+	}
+	fclose(pidsStream);
+	
 	// Wait for the cameras to fully close
-	if (killallResponse == 0) {
-		sleep(1);
+	if (killedPrevious) {
+		sleep(2);
 	}
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
@@ -301,14 +306,19 @@ int main(int argc, char** argv) {
 		** Obviously, don't send SIGUSR2 to the program without cause.
 		*/
 		std::cout << "SIGUSR2 received. Intentionally segfaulting..." << std::endl;
-		volatile int* nothing=nullptr; //Volatile so the compiler doesn't realize this is a terrible idea.
-		int segfault=*nothing; //Dereferencing a nullptr is a segfault.
-
+		
+		//Volatile so the compiler doesn't realize this is a terrible idea.
+		//Dereferencing a nullptr is a segfault.
+		*((volatile int*)nullptr);
+ 
 	});
+	
+	// will fail if the file doesn't exist, and use the default params instead
+	readCalibParams("/home/pi/calib-data/" + streamer.visionCameraName + ".xml");
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
 	ControlPacketReceiver receiver=ControlPacketReceiver(&parseControlMessage,5805);
-	while (true) sleep(INT_MAX);
+    VisionThread();
 	return 0;
 }

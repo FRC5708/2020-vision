@@ -181,7 +181,7 @@ vector<string> getLoopbackDevices() {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"C920", "C525", "C615"
+	"C920_99EDB55F", "C615_603161B0", "C615_F961A370", "C525_5FC6DE20"
 };
 
 void Streamer::start() {
@@ -212,9 +212,10 @@ void Streamer::setupCameras(){
 	}
 
 
-	for (auto i = cameraNames.begin(); i < cameraNames.end(); ++i) {
-		vector<string> namedCameras = getVideoDevicesWithString(*i);
+	for (auto& i : cameraNames) {
+		vector<string> namedCameras = getVideoDevicesWithString(i);
 		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
+		if (visionCameraName.empty() && namedCameras.size() > 0) visionCameraName = i;
 	}
 	
 	std::cout << "Cameras detected: " << cameraDevs.size() << std::endl;
@@ -602,7 +603,7 @@ string Streamer::parseControlMessage(string command, string arguments){
 		try{
 			cam_no=std::stoi(buffer);
 			cameras.push_back(cam_no);
-		}catch(std::exception){
+		}catch(std::exception& e){ // stoi threw an exception
 			status << buffer <<  ":-1:INVALID CAMERA NO" << '\n';
 		}
 	} 
@@ -610,7 +611,7 @@ string Streamer::parseControlMessage(string command, string arguments){
 		//We didn't actually get any camera numbers.
 		return "UNPARSABLE MESSAGE (No cameras specified)\n";
 	}
-	for(int i : cameras){
+	for(unsigned int i : cameras){
 		if(i>=cameraReaders.size()){
 			status << i << ":-1:INVALID CAMERA NO" << "\n";
 			continue;
