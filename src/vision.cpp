@@ -288,7 +288,7 @@ struct SolvePnpResult {
         double camLocalZ = 0;
         double camLocalY = 0;
 
-		inchTotalDist = sqrt(pow(tvec.at<double>(0) - cam camLocalX, 2) + pow(tvec.at<double>(1) - camLocalY, 2) + pow(tvec.at<double>(2) - camLocalZ, 2));
+		inchTotalDist = sqrt(pow(tvec.at<double>(0) - camLocalX, 2) + pow(tvec.at<double>(1) - camLocalY, 2) + pow(tvec.at<double>(2) - camLocalZ, 2));
 		
 		output.distance = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
 		
