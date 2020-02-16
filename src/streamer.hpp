@@ -25,7 +25,9 @@ class Streamer {
 	
 	volatile bool handlingLaunchRequest = false;
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
-
+	static constexpr char* GSTREAMER_PREVIOUS_PID_FILE_PATH="/tmp/5708-vision/gstreamer_pid";
+	pid_t get_previous_gstreamer_pid(); //Get PID of previous gst instance if it exists, return 0 otherwise.
+	bool write_gstreamer_pid_to_file(); //Writes gstremer pid to file, returning false upon failure. TODO: IMPLEMENT ME!
 	std::vector<std::string> cameraDevs;
 
 	

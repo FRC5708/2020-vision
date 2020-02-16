@@ -260,7 +260,6 @@ int main(int argc, char** argv) {
 	}
 
 	// Kill other instances of the program and its children that might be hanging around
-	system("killall --quiet gst-launch-1.0");
 	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
 	// Wait for the cameras to fully close
 	if (killallResponse == 0) {

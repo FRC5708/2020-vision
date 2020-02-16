@@ -54,8 +54,70 @@ void Streamer::handleCrash(pid_t pid) {
 }
 Streamer::Streamer(std::function<void(void)> callback){
 	visionFrameNotifier=callback;
+	gstreamer_pid=get_previous_gstreamer_pid();
 }
 
+/* pid_t Streamer::get_previous_gstreamer_pid()
+** This function reads the pid of the previous gstreamer instance from the file /tmp/5708-vision/gstreamer_pid/
+** If the file doesn't exist, this function will return 0.
+*/
+pid_t Streamer::get_previous_gstreamer_pid(){
+
+	int file_fd=-1; //file descriptor of file containign pid
+	pid_t gst_pid=0; //Value that will be returned. Remains 0 if unable to succesfully read file.
+	ssize_t count=-1; //Count read by read call.
+	int close_val=-1; //Return of close attempt.
+	int temp_fd=-1; //File descriptor temporarily used to create, and then close the file if it didn't exist.
+	
+	//Open the file, and create it if it doesn't exist
+	file_fd=open(GSTREAMER_PREVIOUS_PID_FILE_PATH,O_RDWR | O_CLOEXEC);
+	if(file_fd==-1){
+		if(errno==ENOENT){
+			//The file doesn't exist. Let's make it.
+			std::cout << "File "<< GSTREAMER_PREVIOUS_PID_FILE_PATH << " doesn't exist. Creating..." << std::endl;
+			temp_fd=creat(GSTREAMER_PREVIOUS_PID_FILE_PATH,S_IRUSR | S_IWUSR);
+			if(temp_fd == -1){
+				perror("pid_t Streamer::get_previous_gstreamer_pid() -- creat: ");
+			}
+			close(temp_fd);
+			goto CLEANUP;
+		}
+		else{
+			//Who knows what happened. ~(-_-)~
+			perror("pid_t Streamer::get_previous_gstreamer_pid() -- open: ");
+			goto CLEANUP;
+		}
+	}
+
+	//Read from the file.
+	read(file_fd,&gst_pid,sizeof(pid_t));
+	if(count == -1){
+		perror("pid_t Streamer::get_previous_gstreamer_pid() -- read: ");
+		gst_pid=0;
+		goto CLEANUP;
+	}
+	if(count != sizeof(pid_t)){
+		//Something got screwy.
+		std::cerr << "File for gstreamer_pid existed, but had wrong bit count. Something screwy has occured." << std::endl;
+		gst_pid=0;
+		goto CLEANUP;
+	}
+	//Cleanup
+CLEANUP:
+	close_val=close(file_fd);
+	if(close_val==-1) perror("id_t Streamer::get_previous_gstreamer_pid() -- close: ");
+	return gst_pid;
+
+};
+/* bool Streamer::write_gstreamer_pid_to_file()
+** Attempts to write the pid of the currently-running gstreamer instance to disk.
+** Upon failure (either gstreamer_pid is 0, or file I/O fails), the function returns false.
+** TODO: IMPLEMENT ME!
+*/
+bool Streamer::write_gstreamer_pid_to_file(){
+	//TODO: IMPLEMENT ME!
+	return false;
+}
 void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
 	
@@ -78,6 +140,7 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 
 	gstreamer_pid=pid;
 	gstreamer_command=strCommand;
+
 }
 
 vector<string> getOutputsFromCommand(const char * cmd) {
