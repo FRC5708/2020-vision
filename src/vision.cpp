@@ -1,32 +1,17 @@
 #include "vision.hpp"
-#include "RedContourGrip.hpp"
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
+#include <chrono>
+#include <memory>
+#include <cmath>
 
+#include "GripHexFinder.hpp"
 
-// this function from opencv/samples/cpp/tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
+#define PI 3.14159265
+
 using std::vector;
-namespace cv {
-	static double computeReprojectionErrors( const vector<Point3f>& objectPoints,
-											const vector<Point2f>& imagePoints,
-											const Mat& rvec, const Mat& tvec,
-											const Mat& cameraMatrix , const Mat& distCoeffs) {
-		vector<Point2f> imagePoints2;
-		size_t totalPoints = 0;
-		double totalErr = 0, err;
-
-		projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, imagePoints2);
-		
-		err = norm(imagePoints, imagePoints2, NORM_L2);
-
-		size_t n = objectPoints.size();
-		totalErr        += err*err;
-		totalPoints     += n;
-
-		return std::sqrt(totalErr/totalPoints);
-	}
-}
+using std::cout; using std::endl;
 
 bool isImageTesting = false;
 bool verboseMode = false;
@@ -41,49 +26,17 @@ bool isNanOrInf(double in) {
 	return isnan(in) || isinf(in);
 }
 
-// from http://answers.opencv.org/question/16796/computing-attituderoll-pitch-yaw-from-solvepnp/?answer=52913#post-id-52913
-cv::Vec3d getEulerAngles(cv::Mat &rotation) {
-	cv::Mat rotCamerMatrix;
-	cv::Rodrigues(rotation, rotCamerMatrix);
+// All the constants
 
-    cv::Mat cameraMatrix,rotMatrix,transVect,rotMatrixX,rotMatrixY,rotMatrixZ;
-	cv::Vec3d eulerAngles;
-    double* _r = rotCamerMatrix.ptr<double>();
-    double projMatrix[12] = {_r[0],_r[1],_r[2],0,
-                          _r[3],_r[4],_r[5],0,
-                          _r[6],_r[7],_r[8],0};
+constexpr double inchTapesHeightAboveGround = 6*12 + 9 + 1/4;
+constexpr double inchTapesWidthTop = 3*12 + 3 + 1/4;
+constexpr double inchSideTapesLength = 1*12 + 7 + 5/8;
+constexpr double inchTapesHeight = 1*12 + 5;
 
-    decomposeProjectionMatrix(cv::Mat(3,4,CV_64FC1,projMatrix),
-                               cameraMatrix,
-                               rotMatrix,
-                               transVect,
-                               rotMatrixX,
-                               rotMatrixY,
-                               rotMatrixZ,
-                               eulerAngles);
-	return eulerAngles;
-}
-
-struct ProcessPointsResult {
-	bool success;
-	VisionData calcs;
-	VisionDrawPoints drawPoints;
-};
-
-// all the constants
-constexpr double radTapeOrientation = 14.5/180*M_PI;
-constexpr double inchTapesWidth = 2;
-constexpr double inchTapesLength = 5.5;
-constexpr double inchInnerTapesApart = 8;
-const double inchTapesHeight = inchTapesLength*cos(radTapeOrientation) + inchTapesWidth*sin(radTapeOrientation); // from bottom to top of tapes
-const double inchTapeTopsApart = inchInnerTapesApart + 2*inchTapesWidth*cos(radTapeOrientation);
-const double inchTapeBottomsApart = inchInnerTapesApart + 2*inchTapesLength*sin(radTapeOrientation);
-const double inchOuterTapesApart = inchTapeTopsApart + 2*inchTapesLength*sin(radTapeOrientation); // from outermost edge
-const double inchHatchTapesAboveGround = 2*12+7.5 - inchTapesHeight;
-const double inchPortTapesAboveGround = 3*12+3.125 - inchTapesHeight;
-
-// For reference: old cameras' FOV is 69°, new camera is 78°
-
+const double inchTapesWidthBottom = inchTapesWidthTop
+ - 2*sqrt(pow(inchSideTapesLength, 2) - pow(inchTapesHeight, 2));
+ 
+ constexpr double inchCameraHeightAboveGround = 5*12; // TODO: Set me to my actual value!
 
 struct ContourCorners {
 	cv::Point topleft, topright, bottomright, bottomleft;
@@ -223,8 +176,13 @@ void drawVisionPoints(VisionDrawPoints& toDraw, cv::Mat& image) {
 	cv::Scalar rodColor(170, 200);
 	cv::Scalar rawPointColor(128, 0);
 	cv::Scalar dotColor(255, 255);
+	
+	
+    for(auto p : toDraw.contour){
+        cv::circle(image, p, 1, rawPointColor);
+    }
 
-
+	/*
 	for (int i = 0; i < 8; ++i) {
 		cv::circle(image, toDraw.points[i], 1, rawPointColor, 2);
 	}
@@ -245,21 +203,43 @@ void drawVisionPoints(VisionDrawPoints& toDraw, cv::Mat& image) {
 		cv::line(image, toDraw.points[i], toDraw.points[i + 1], mainColor, 2);
 	}
 	cv::line(image, toDraw.points[16], toDraw.points[17], rodColor, 2);
-	cv::circle(image, toDraw.points[16], 2, dotColor, 4);
+	cv::circle(image, toDraw.points[16], 2, dotColor, 4);*/
+	
 }
 
 cv::Mat* debugDrawImage;
 void showDebugPoints(VisionDrawPoints& toDraw) {
 	if (!isImageTesting) return;
 	cv::Mat drawOn = debugDrawImage->clone();
-	
+
 	drawVisionPoints(toDraw, drawOn);
-	cv::namedWindow("projection");
+	
+    /*
+    cv::namedWindow("projection");
 	imshow("projection", drawOn);
 	cv::waitKey(0);
-	/*static int imgNum = 0;
+	*/
+
+    //save the jpg image
+    static int imgNum = 0;
 	++imgNum;
-	cv::imwrite("./debugimg_" + std::to_string(imgNum) + ".png", drawOn);*/
+	cv::imwrite("./debugimg_" + std::to_string(imgNum) + ".jpg", drawOn);
+
+}
+
+void DrawPoints(std::vector<cv::Point>& toDraw, cv::Mat& drawOn){
+    //if(!isImageTesting) return;
+
+	cv::Scalar rawPointColor(128, 0);
+    
+    for(auto p : toDraw){
+        cv::circle(drawOn, p, 1, rawPointColor); 
+    }
+
+    /*static int imgNum = 0;
+	++imgNum;
+	cv::imwrite("./pdebugimg_" + std::to_string(imgNum) + ".jpg", drawOn);
+    */
 }
 
 void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& cameraRotationVector, cv::Mat& cameraTranslationVector) {
@@ -269,50 +249,113 @@ void invertPose(cv::Mat& rotation_vector, cv::Mat& translation_vector, cv::Mat& 
 	cameraTranslationVector = -R.t()*translation_vector;
 }
 
+// Gets useful values from the output of solvePnP. 
+// https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html (old documentation) and https://docs.opencv.org/4.2.0/d9/d0c/group__calib3d.html#ga549c2075fac14829ff4a58bc931c033d (newer, but slightly worse documentation) go into some (insufficent) detail about solvePnP. 
 struct SolvePnpResult {
+	// rvec and tvec are returned from solvePnP. (Go read the above documents and stare at the diagram if you haven't already.) They represent a transform between two coordinate spaces; camera space, and world space. Camera space's origin is at the camera, its x-axis is left, its y-axis is down, and z-axis is outwards. World space is whatever we define it to be in the worldPoints parameter passed to solvePnP.
+	// tvec is a vector in camera space that represents the translation from the origin of camera space to the origin of world space. From there, rvec somehow tells us what direction the axes of world coordinate space points.
 	cv::Mat rvec, tvec;
-	double pixError, inchHeight, inchRobotX, inchRobotY;
+	
+	double pixError;
+	
+	// X, Y, and height are the robot's position in a coordinate system oriented so that the X axis is on the plane of the targets and the Y axis points out of the targets. X is right postive, Y is forwards positive, and height is up positive. the breakdown into X, Y, and height is often inaccurate. TotalDist is usually accurate.
+	double inchTotalDist, inchHeight, inchRobotX, inchRobotY;
+	
+	VisionData output;
 	bool valid;
 
-	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, 
+	SolvePnpResult(cv::Mat rvec, cv::Mat tvec, double reprojError,
 	std::vector<cv::Point3f> worldPoints, std::vector<cv::Point2f> imagePoints) :
-	rvec(rvec), tvec(tvec) {
+	rvec(rvec), tvec(tvec), pixError(reprojError) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
-
-		cv::Mat rotation, translation;
-		invertPose(rvec, tvec, rotation, translation);
 
 		if (matContainsNan(rvec) || matContainsNan (tvec)) {
 			std::cout << "solvePnP returned NaN!\n";
 			valid = false;
 			return;
 		} 
-
-		pixError = cv::computeReprojectionErrors(worldPoints, imagePoints, rvec, tvec, calib::cameraMatrix, calib::distCoeffs);
-
-		cv::Vec3d angles = getEulerAngles(rvec);
 		
-		// x is right postive, y is forwards positive
+		// Get the translation in the world coordinate space.
+		cv::Mat rotation, translation;
+		invertPose(rvec, tvec, rotation, translation);
+		
 		inchRobotX = translation.at<double>(0);
 		inchRobotY = translation.at<double>(2);
-		inchHeight = -translation.at<double>(1);	
-
+		inchHeight = -translation.at<double>(1);
+		
+		inchTotalDist = sqrt(pow(tvec.at<double>(0), 2) + pow(tvec.at<double>(1), 2) + pow(tvec.at<double>(2), 2));
+		
+		output.distance = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
+		
+		output.tapeAngle = -atan2(inchRobotX, inchRobotY);
+		
+		// I'm 90% sure that this works
+		output.robotAngle = -asin(tvec.at<double>(0) / output.distance);	
+		
 		valid = true;	
-	}
-
-	bool withinHeight() {
-		return inchHeight > 3 && inchHeight < 8;
 	}
 
 	SolvePnpResult() {
 		valid = false;
 	}
 };
-SolvePnpResult prevResult;
 
+struct ProcessPointsResult {
+	bool success;
+	double pixError;
+	VisionTarget t;
+};
+ProcessPointsResult processPoints(ContourCorners trapezoid,
+ int pixImageWidth, int pixImageHeight) {
 
-ProcessPointsResult processResult(SolvePnpResult* resultUsing, 
-std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv::Point2f lastImagePoint) {
+	// There might be a bug in openCV that would require the focal length to be multiplied by 2.
+	// Test this.
+
+	// world coords: (0, 0, 0) at bottom center of tapes
+	// up and right are positive. y-axis is vertical.
+	std::vector<cv::Point3f> worldPoints = {
+		cv::Point3f(-inchTapesWidthTop/2, inchTapesHeight, 0),
+		cv::Point3f(inchTapesWidthTop/2, inchTapesHeight, 0),
+		cv::Point3f(-inchTapesWidthBottom/2, 0, 0),
+		cv::Point3f(inchTapesWidthBottom/2, 0, 0),
+	};
+	std::vector<cv::Point2f> imagePoints = {
+		trapezoid.topleft, trapezoid.topright, trapezoid.bottomleft, trapezoid.bottomright
+	};
+
+	std::vector<double> reprojErrors;
+	std::vector<cv::Mat> rvecs, tvecs;
+	cv::solvePnPGeneric(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs,
+	 rvecs, tvecs, false, cv::SOLVEPNP_IPPE, cv::noArray(), cv::noArray(), reprojErrors);
+	 
+	// SOLVEPNP_IPPE returns up to 2 results.
+	SolvePnpResult result1(rvecs[0], tvecs[0], reprojErrors.at(0), worldPoints, imagePoints);
+	SolvePnpResult result2(rvecs[1], tvecs[1], reprojErrors.at(1), worldPoints, imagePoints);
+
+	// solvePnpGeneric sorts results by reprojection error
+	assert(result1.pixError <= result2.pixError);
+	
+	double pixMaxError = std::max(3.0, (trapezoid.topright.x - trapezoid.topleft.x + trapezoid.bottomright.y - trapezoid.topleft.y) / 2.0 / 12.0);
+
+	SolvePnpResult* resultUsing = nullptr;
+	
+	if (verboseMode) std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
+		 << "result2: err:" << result1.pixError << " x:" << result2.tvec.at<double>(0) << " y:" << result2.tvec.at<double>(1) << " z:" << result2.tvec.at<double>(2) << "\n"
+		  << "maxError:" << pixMaxError << std::endl;
+
+	if (result1.pixError > pixMaxError) return { false, {}};
+	else if (result2.pixError > pixMaxError) resultUsing = &result1;
+	else {
+
+		// TODO: guess which solution is correct.
+		// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
+		
+		// Temporary solution:
+		resultUsing = &result1;
+	}
+	
+	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
+
 
 	auto rsize = resultUsing->rvec.size();
 	auto tsize = resultUsing->tvec.size();
@@ -321,25 +364,24 @@ std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv
 		return { false, {}};
 	}
 
+/*
 	VisionData result;
 	result.distance = sqrt(pow(resultUsing->inchRobotX, 2) + pow(resultUsing->inchRobotY, 2));
-
 	result.tapeAngle = -atan2(resultUsing->inchRobotX, resultUsing->inchRobotY);
 	result.robotAngle = -asin(resultUsing->tvec.at<double>(0) / result.distance);
+	*/
 
-	if (isNanOrInf(result.distance) || isNanOrInf(result.robotAngle) || isNanOrInf(result.tapeAngle)) {
+	if (isNanOrInf(resultUsing->output.distance) || isNanOrInf(resultUsing->output.robotAngle) || isNanOrInf(resultUsing->output.tapeAngle)) {
 		std::cout << "encountered NaN or Infinity" << std::endl;
 		return { false, {} };
 	}
-
 	
 	//double radReferencePitch = fmod((radPitch + 2*M_PI), M_PI); // make positive
 	//if (radReferencePitch > M_PI_2) radReferencePitch = M_PI - radReferencePitch;
-
+	
 	VisionDrawPoints draw;
-	std::copy(imagePoints.begin(), imagePoints.end(), draw.points);
-	draw.points[7] = lastImagePoint;
-
+	std::copy(imagePoints.begin(), imagePoints.end(), draw.contour);
+	/*
 	constexpr float CROSSHAIR_LENGTH = 4,
 	 FLOOROUT_LENGTH = 33,
 	 FLOOROUT_WIDTH = 27.5,
@@ -366,166 +408,65 @@ std::vector<cv::Point3f>& worldPoints, std::vector<cv::Point2f>& imagePoints, cv
 	assert(projPoints.type() == CV_32FC2);
 	std::copy(projPoints.begin<cv::Point2f>(), projPoints.end<cv::Point2f>(), draw.points + 8);
 	
-	if (isImageTesting) showDebugPoints(draw);
+	if (isImageTesting) showDebugPoints(draw);*/
 	
-	prevResult = *resultUsing;
-	return { true, result, draw };
+	return { true, resultUsing->pixError, resultUsing->output, draw };
 }
 
-ProcessPointsResult processPoints(ContourCorners left, ContourCorners right,
- int pixImageWidth, int pixImageHeight) {
-	
-	if (verboseMode) {
-		std::cout << "left: ";
-		printContourCorners(left);
-		std::cout << "\nright: ";
-		printContourCorners(right);
-		std::cout << std::endl;
-	}
-
-	// There might be a bug in openCV that would require the focal length to be multiplied by 2.
-	// Test this.
-
-	// world coords: (0, 0, 0) at bottom center of tapes
-	// up and right are positive. y-axis is vertical.
-	std::vector<cv::Point3f> worldPoints = {
-		cv::Point3f(-inchOuterTapesApart/2, inchTapesWidth*sin(radTapeOrientation), 0),
-		cv::Point3f(inchOuterTapesApart/2, inchTapesWidth*sin(radTapeOrientation), 0),
-		cv::Point3f(-inchTapeTopsApart/2, inchTapesHeight, 0),
-		cv::Point3f(inchTapeTopsApart/2, inchTapesHeight, 0),
-		cv::Point3f(-inchInnerTapesApart/2, inchTapesLength*cos(radTapeOrientation), 0),
-		cv::Point3f(inchInnerTapesApart/2, inchTapesLength*cos(radTapeOrientation), 0),
-		cv::Point3f(-inchTapeBottomsApart/2, 0, 0),
-		//cv::Point3f(inchTapeBottomsApart/2, 0, 0)
-	};
-	std::vector<cv::Point2f> imagePoints = {
-		left.bottomleft, right.bottomright, left.topleft, right.topright,
-		left.topright, right.topleft, left.bottomright//, right.bottom
-	};
-
-	cv::Mat rvec, tvec;
-	bool retval = cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
-	//std::cout << "solvePnP withoutprev retval: " << retval << std::endl;
-	SolvePnpResult resultWithoutPrevious(rvec, tvec, worldPoints, imagePoints);
-
-	SolvePnpResult* resultUsing = nullptr;
-	SolvePnpResult resultWithPrevious;
-
-	if (prevResult.valid) {
-		rvec = prevResult.rvec; tvec = prevResult.tvec;
-		try {
-			cv::solvePnP(worldPoints, imagePoints, calib::cameraMatrix, calib::distCoeffs, rvec, tvec, true, cv::SOLVEPNP_ITERATIVE);
-		}
-		catch(const cv::Exception e) {
-			std::cerr << "cv::solvePnP useExtrinsicGuess threw a cv::Exception: " << e.msg << std::endl;
-			resultUsing = &resultWithoutPrevious;
-			return processResult(resultUsing, worldPoints, imagePoints, right.bottomleft);
-		}
-
-		resultWithPrevious = SolvePnpResult(rvec, tvec, worldPoints, imagePoints);
-
-		std::cout << "without prev: err:" << resultWithoutPrevious.pixError << " height:" << resultWithoutPrevious.inchHeight
-		<< "with prev: err:" << resultWithPrevious.pixError << " height:" << resultWithPrevious.inchHeight << std::endl;
-
-		double pixMaxError = std::max(3, 
-				((left.bottomright.y - left.topleft.y) + (right.bottomleft.y - right.topright.y))/2 / 6);
-
-
-		if (resultWithoutPrevious.pixError > pixMaxError) resultUsing = &resultWithPrevious;
-		if (resultWithPrevious.pixError > pixMaxError) resultUsing = &resultWithoutPrevious;
-		if (resultUsing != nullptr && resultUsing->pixError > pixMaxError) return { false, {}};
-
-		if (resultUsing == nullptr) {
-			if (resultWithoutPrevious.withinHeight() && !resultWithPrevious.withinHeight()) resultUsing = &resultWithoutPrevious;
-			else if (resultWithPrevious.withinHeight() && !resultWithoutPrevious.withinHeight()) resultUsing = &resultWithPrevious;
-			else resultUsing = (resultWithoutPrevious.pixError < resultWithPrevious.pixError) 
-			? &resultWithoutPrevious : &resultWithPrevious;
-		}	 
-	}
-	else resultUsing = &resultWithoutPrevious;
-
-	if (resultUsing == &resultWithPrevious) std::cout << "Using previous result with useExtrinsicGuess" << std::endl;
-
-	return processResult(resultUsing, worldPoints, imagePoints, right.bottomleft);
-}
-
-std::vector<VisionTarget> processContours(
-	std::vector<std::vector<cv::Point> >* contours, int imgWidth, int imgHeight) {
-std::vector<cv::Rect> rects;
-	std::vector<ContourCorners> contourCorners;
-
-	const float minRectWidth = 10; //pixels 
-	const float minRectHeight= 10;
-	for (auto i : *contours) {
-		cv::Rect rect = cv::boundingRect(i);
-		if (rect.width >= minRectWidth && rect.height >= minRectHeight) {
-			rects.push_back(rect);
-			/*if (verboseMode) {
-				std::cout << "contour: " <<
-			}*/
-			ContourCorners corners = getContourCorners(i);
-			if (corners.valid) contourCorners.push_back(corners);
-		}
-	}
-
-	const float rectSizeDifferenceTolerance = 0.5; // fraction of width/height
-	const float rectYDifferenceTolerance = 0.5;
-	const float rectDistanceTolerance = 10; // multiplier of the width of one rectangle, that the whole vision target can be
-
-	if (verboseMode) for (auto rect : rects) {
-		std::cout << "found rect: x:" << rect.x << ",y:" << rect.y << ",w:" << rect.width << ",h:" << rect.height << std::endl;
-	}
-
-	std::vector<VisionTarget> results;
-	
-	// find rects that are close enough in size and distance
-	for (unsigned int i = 0; i < rects.size(); ++i) {
-		for (unsigned int j = 0; j < rects.size(); ++j) {
-			cv::Rect& left = rects[i];
-			cv::Rect& right = rects[j];
-
-			if (left != right &&
-				left.br().x < right.tl().x &&
-				left.tl().x + (left.width + right.width) / 2 * rectDistanceTolerance > right.br().x &&
-			    abs(left.width - right.width) < rectSizeDifferenceTolerance * (left.width + right.width) / 2 &&
-				abs(left.height - right.height) < rectSizeDifferenceTolerance * (left.width + right.width) / 2 &&
-				abs(left.br().y - right.br().y) < rectYDifferenceTolerance * (left.height + right.height) / 2) {
-				// keep around old output for debugging
-				//if (verboseMode) processRects(left, right, imgWidth, imgHeight);
-				try {
-					ProcessPointsResult result = processPoints(
-						contourCorners[i], contourCorners[j], imgWidth, imgHeight);
-
-					if (result.success) {
-						results.push_back({ result.calcs, result.drawPoints, left, right });
-					}
-				}
-				catch (const cv::Exception e) {
-					if (isImageTesting) throw;
-					std::cerr << "ProcessPoints threw a cv::Exception: " << e.msg << std::endl;
-				}
-			}
-		}
-	}
-	// lowest distance first
-	std::sort(results.begin(), results.end(), [](VisionTarget a, VisionTarget b) -> bool {
-		return a.calcs.distance < b.calcs.distance;
-	});
-	
-	return results;
-}
-
-std::vector<VisionTarget> doVision(cv::Mat image) {
+VisionTarget doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
 
-	grip::RedContourGrip finder;
-	finder.Process(image);
+    grip::GripHexFinder finder;
+    finder.Process(image);
+
+    //convert lines to contours
+    std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
+    
+    if (verboseMode) cout << "Found " << conts.size() << " contours" << std::endl; 
 	
-	auto results1 = processContours(finder.GetBrightContours(), image.cols, image.rows);
-	auto results2 = processContours(finder.GetRedContours(), image.cols, image.rows);
+	std::vector<ProcessPointsResult> results;   
+    for(auto c : conts){
+       //filter out contours that don't make sense
 
-	results1.insert(results1.begin(), results2.begin(), results2.end());
-	return results1;
+        //ensure contour area is at least a certain percent of the image
+        double imageArea = image.rows*image.cols;
+        double contArea = cv::contourArea(c);
+        double contPerc = contArea/imageArea;
+        if(contPerc > 0.01 && c.size() > 4){
+            ContourCorners corners = getContourCorners(c);
+			if (!corners.valid) break;
+            std::vector<cv::Point2f> cornerPoints;
+            cornerPoints.push_back(corners.topleft); cornerPoints.push_back(corners.topright);
+            cornerPoints.push_back(corners.bottomleft);cornerPoints.push_back(corners.bottomright);
+            sort(cornerPoints.begin(), cornerPoints.end(), 
+                [](const cv::Point& a, const cv::Point& b) -> bool{
+                    return a.y > b.y;
+                });
+            
+            double topAng = abs(atan((cornerPoints[0].y - cornerPoints[1].y)/(cornerPoints[0].x - cornerPoints[1].x))) * 180.0 / PI;
+            double botAng = abs(atan((cornerPoints[2].y - cornerPoints[3].y)/(cornerPoints[2].x - cornerPoints[3].x))) * 180.0 / PI;
+            if(topAng < 15.0 && botAng < 15.0){
+                //if(){
+                    //the top and bottoms are relatively aligned (within 10 pixels)
+                         
+                    try { 
+                        auto result = processPoints(corners, image.cols, image.rows);
+                        if(result.success){
+                            results.push_back(result);
+                        }
+                    } catch(const cv::Exception& e){
+                        std::cout << e.what() << "was thrown by processPoints()" << std::endl;
+                        continue;
+                    }
+                
+                    for(auto target : results){
+                        std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
+                    }
+                //}
+            }
+        }
+    }
+	// TODO: In the rare case that there's more than one result, choose which one to return
+    if (results.size() > 0) return results[0].t;
+	else return {};
 }
-
-

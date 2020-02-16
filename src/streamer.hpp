@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "vision.hpp"
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
 #include <string>
@@ -27,7 +26,6 @@ class Streamer {
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
 
 	std::vector<std::string> cameraDevs;
-
 	
 	std::string loopbackDev;
 
@@ -88,6 +86,8 @@ public:
 	bool lowExposure = false;
 	void setLowExposure(bool value);
 	cv::Mat frameBuffer;
+	
+	std::string visionCameraName;
 	
 	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...] 
 	**Returned status syntax: 
