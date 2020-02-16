@@ -282,16 +282,24 @@ struct SolvePnpResult {
 		inchRobotX = translation.at<double>(0);
 		inchRobotY = translation.at<double>(2);
 		inchHeight = -translation.at<double>(1);
-		
-		inchTotalDist = sqrt(pow(tvec.at<double>(0), 2) + pow(tvec.at<double>(1), 2) + pow(tvec.at<double>(2), 2));
+	`
+        //TO DO: Set these values to the camera position relative to the center of the robot
+        double camLocalX = 0;
+        double camLocalZ = 0;
+        double camLocalY = 0;
+
+		inchTotalDist = sqrt(pow(tvec.at<double>(0) - cam camLocalX, 2) + pow(tvec.at<double>(1) - camLocalY, 2) + pow(tvec.at<double>(2) - camLocalZ, 2));
 		
 		output.distance = sqrt(pow(inchTotalDist, 2) - pow(inchTapesHeightAboveGround - inchCameraHeightAboveGround, 2));
 		
 		output.tapeAngle = -atan2(inchRobotX, inchRobotY);
 		
+
+
 		// I'm 90% sure that this works
 		output.robotAngle = -asin(tvec.at<double>(0) / output.distance);	
-		
+
+
 		valid = true;	
 	}
 
