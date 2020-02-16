@@ -301,6 +301,15 @@ int main(int argc, char** argv) {
 		}
 		exit(0);
 	});
+	signal(SIGUSR2, [](int){
+		/* For testing purposes, this makes the program SEGFAULT immedietly upon receiving SIGUSR2.
+		** Obviously, don't send SIGUSR2 to the program without cause.
+		*/
+		std::cout << "SIGUSR2 received. Intentionally segfaulting..." << std::endl;
+		volatile int* nothing=nullptr; //Volatile so the compiler doesn't realize this is a terrible idea.
+		int segfault=*nothing; //Dereferencing a nullptr is a segfault.
+
+	});
 	
 	// will fail if the file doesn't exist, and use the default params instead
 	readCalibParams("/home/pi/calib-data/" + streamer.visionCameraName + ".xml");
