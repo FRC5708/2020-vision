@@ -90,7 +90,7 @@ pid_t Streamer::get_previous_gstreamer_pid(){
 	}
 
 	//Read from the file.
-	read(file_fd,&gst_pid,sizeof(pid_t));
+	count = read(file_fd,&gst_pid,sizeof(pid_t));
 	if(count == -1){
 		perror("pid_t Streamer::get_previous_gstreamer_pid() -- read: ");
 		gst_pid=0;
@@ -106,13 +106,13 @@ pid_t Streamer::get_previous_gstreamer_pid(){
 CLEANUP:
 	close_val=close(file_fd);
 	if(close_val==-1) perror("id_t Streamer::get_previous_gstreamer_pid() -- close: ");
+	if(gst_pid!=0) std::cout << "Succesfully read previous gst_pid of " << gst_pid << " from file." << std::endl;
 	return gst_pid;
 
 };
 /* bool Streamer::write_gstreamer_pid_to_file()
 ** Attempts to write the pid of the currently-running gstreamer instance to disk.
 ** Upon failure (either gstreamer_pid is 0, or file I/O fails), the function returns false.
-** TODO: IMPLEMENT ME!
 */
 bool Streamer::write_gstreamer_pid_to_file(){
 	bool failed = false;
@@ -133,6 +133,7 @@ bool Streamer::write_gstreamer_pid_to_file(){
 	}
 CLEANUP:
 	close(write_fd);
+	if(!failed) std::cout << "Wrote gstreamer pid of " << gstreamer_pid << " to file." << std::endl;
 	return !failed;
 }
 void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {

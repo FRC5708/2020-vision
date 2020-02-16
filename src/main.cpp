@@ -37,7 +37,7 @@ using std::cout; using std::cerr; using std::endl; using std::string;
 
 
 // when false, drastically slows down vision processing
-volatile bool visionEnabled = true;
+volatile bool visionEnabled = false;
 
 VisionTarget lastResults;
 //std::vector<cv::Point> lastResults;

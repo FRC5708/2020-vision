@@ -354,7 +354,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 		resultUsing = &result1;
 	}
 	
-	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
+	if(verboseMode) std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
 
 	auto rsize = resultUsing->rvec.size();
