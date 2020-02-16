@@ -247,13 +247,28 @@ int main(int argc, char** argv) {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
+	
 
-	// Kill other instances of the program and its children that might be hanging around
-	system("killall --quiet gst-launch-1.0");
-	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
+	// Kill other instances of the program
+	pid_t myPid = getpid();
+	FILE* pidsStream = popen("pgrep 5708-vision", "r");
+	char* pidString = nullptr;
+	size_t lineAlloced = 0;
+	bool killedPrevious = false;
+	while (getline(&pidString, &lineAlloced, pidsStream) > 0) {
+		
+		pid_t otherPid = atoi(pidString);
+		if (otherPid > 0 && otherPid != myPid){
+			kill(otherPid, SIGTERM);
+			std::cout << "Killed older instance of 5708-vision " << otherPid << std::endl;
+			killedPrevious = true;
+		} 
+	}
+	fclose(pidsStream);
+	
 	// Wait for the cameras to fully close
-	if (killallResponse == 0) {
-		sleep(1);
+	if (killedPrevious) {
+		sleep(2);
 	}
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
