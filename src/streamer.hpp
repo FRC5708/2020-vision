@@ -9,18 +9,18 @@
 
 #include "DataComm.hpp"
 #include "VideoHandler.hpp"
+#include <string>
 
 // Starts and manages gStreamer processes
 // Also intercepts the video stream from one camera to feed into vision processing
 class Streamer {	
 	cv::Mat image;
+	std::string strAddr;
+	int bitrate;
 
-	// Holds info about one gStreamer process. 
-	struct GstInstance {
-		pid_t pid;
-		std::string command;
-	};
-	std::vector<GstInstance> gstInstances;
+
+	pid_t gstreamer_pid=0;
+	std::string gstreamer_command; //Do we actually need/want this to be saved?
 	
 	volatile bool handlingLaunchRequest = false;
 	void launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, std::string port, std::string file);
@@ -54,15 +54,18 @@ class Streamer {
 	std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock().now();
 	int frameCount = 0;
 	std::vector<int> cameraFrameCounts;
-	
+	void setupCameras(); //Set up the cameras. (Only called once)
 	void setupFramebuffer();
+	void restartWriter();
+	void killGstreamerInstance();//Kill the previous instance of gsteamer, that we may start anew.
 
 
 public:
 	Streamer(std::function<void(void)>);
 	int outputWidth, outputHeight, correctedWidth, correctedHeight;
-	int getVisionCameraWidth() { return visionCamera->width; }
-	int getVisionCameraHeight() { return visionCamera->height; }
+	int getVisionCameraWidth() { return visionCamera->getWidth(); }
+	int getVisionCameraHeight() { return visionCamera->getHeight(); }
+	void calculateOutputSize(); //Calculates and updates values of outputWidth, outputHeight
 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	void (*annotateFrame)(cv::Mat) = nullptr;
@@ -85,6 +88,21 @@ public:
 	cv::Mat frameBuffer;
 	
 	std::string visionCameraName;
+	
+	/*Control message syntax: CONTROL MESSAGE:Camerano1,[camerano2,...] 
+	**Returned status syntax: 
+	**	Camerano1:RETNO:STATUS MESSAGE
+	**  Camerano2:RETNO:STATUS MESSAGE
+	**  ...
+	**If the original control message is completely unparseable, the return status is
+	**  UNPARSABLE MESSAGE
+	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
+	
+	Available control messages are: reset, resolution <width> <height>
+	*/
+	std::string parseControlMessage(std::string command, std::string arguments); 
+private:
+	std::string controlMessage(unsigned int camera, std::string command, std::string parameters);
 };
 extern int clientFd;
 

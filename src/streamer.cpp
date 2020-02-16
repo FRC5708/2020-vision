@@ -23,12 +23,11 @@
 
 using std::cout; using std::cerr; using std::endl; using std::string; using std::vector;
 
-pid_t runCommandAsync(const std::string& cmd, int closeFd) {
+pid_t runCommandAsync(const std::string& cmd) {
 	pid_t pid = fork();
 	
 	if (pid == 0) {
 		// child
-		close(closeFd);
 
 		string execCmd = ("exec " + cmd);
 		cout << "> " << execCmd << endl;
@@ -47,13 +46,10 @@ pid_t runCommandAsync(const std::string& cmd, int closeFd) {
 }
 
 void Streamer::handleCrash(pid_t pid) {
-	if (!handlingLaunchRequest) {
-		for (auto& i : gstInstances) {
-			if (i.pid == pid) {
-				std::cout << "Realunching gStreamer after crash..." << std::endl;
-				i.pid = runCommandAsync(i.command, servFd);
-			}
-		}
+	if(!handlingLaunchRequest && pid==gstreamer_pid){
+		// Theoretically using cout in a signal handler is bad, but it's never caused an issue for us
+        std::cout << "Realunching gStreamer after crash..." << std::endl;
+		gstreamer_pid = runCommandAsync(gstreamer_command);
 	}
 }
 Streamer::Streamer(std::function<void(void)> callback){
@@ -69,14 +65,19 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	
 	std::stringstream command;
 	command << gstreamCommand << " v4l2src device=" << file << " ! videoscale ! videoconvert ! queue ! " << codec << " target-bitrate=" << bitrate <<
-	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! udpsink"
+	" control-rate=variable ! video/x-h264, width=" << width << ",height=" << height << ",framerate=30/1,profile=high ! rtph264pay ! " 
+	// Normal streaming
+	 " udpsink"
+	// Tunneled streaming
+	// " gdppay ! tcpclientsink"
 	<< " host=" << recieveAddress << " port=" << port;
 
 	string strCommand = command.str();
 	
-	pid_t pid = runCommandAsync(strCommand, servFd);
+	pid_t pid = runCommandAsync(strCommand);
 
-	gstInstances.push_back({ pid, strCommand });
+	gstreamer_pid=pid;
+	gstreamer_command=strCommand;
 }
 
 vector<string> getOutputsFromCommand(const char * cmd) {
@@ -117,11 +118,26 @@ vector<string> getLoopbackDevices() {
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 
 vector<string> cameraNames = {
-	"C920", "C525", "C615"
+	"C920_99EDB55F", "C615_603161B0", "C615_F961A370", "C525_5FC6DE20"
 };
 
 void Streamer::start() {
-	
+	setupCameras();
+	calculateOutputSize();
+	setupFramebuffer();
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
+	initialized = true;	
+	// Start the thread that listens for the signal from the driver station
+	std::thread(&Streamer::dsListener, this).detach();
+}
+void Streamer::restartWriter(){
+	videoWriter.closeWriter();
+	std::cout << "Closed Writer" << std::endl;
+	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
+}
+void Streamer::setupCameras(){
+	if(initialized) return;
+
 	vector<string> loopbackDevList = getLoopbackDevices();
 	if (loopbackDevList.empty()) {
 		std::cerr << "v4l2loopback device not found" << std::endl;
@@ -172,23 +188,25 @@ void Streamer::start() {
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
+		std::cout << "DEBUG: cameraReaders pushed back " << i << std::endl;
 	}
-	
+}
+void Streamer::calculateOutputSize(){
 	switch (cameraDevs.size()) {
 	case 1:
-		outputWidth = cameraReaders[0]->width; outputHeight = cameraReaders[0]->height;
+		outputWidth = cameraReaders[0]->getWidth(); outputHeight = cameraReaders[0]->getHeight();
 		break;
 	case 2:
-		outputWidth = cameraReaders[0]->width + cameraReaders[1]->width;
-		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height);
+		outputWidth = cameraReaders[0]->getWidth() + cameraReaders[1]->getWidth();
+		outputHeight = std::max(cameraReaders[0]->getHeight(), cameraReaders[1]->getHeight());
 		break;
 	case 3:
-		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width);
-		outputHeight = std::max(cameraReaders[0]->height, cameraReaders[1]->height) + cameraReaders[2]->height;
+		outputWidth = std::max(cameraReaders[0]->getWidth() + cameraReaders[1]->getWidth(), cameraReaders[2]->getWidth());
+		outputHeight = std::max(cameraReaders[0]->getHeight(), cameraReaders[1]->getHeight()) + cameraReaders[2]->getHeight();
 		break;
 	case 4:
-		outputWidth = std::max(cameraReaders[0]->width + cameraReaders[1]->width, cameraReaders[2]->width + cameraReaders[3]->width);
-		outputHeight = std::max(cameraReaders[0]->height + cameraReaders[2]->height, cameraReaders[1]->height + cameraReaders[3]->height);
+		outputWidth = std::max(cameraReaders[0]->getWidth() + cameraReaders[1]->getWidth(), cameraReaders[2]->getWidth() + cameraReaders[3]->getWidth());
+		outputHeight = std::max(cameraReaders[0]->getHeight() + cameraReaders[2]->getHeight(), cameraReaders[1]->getHeight() + cameraReaders[3]->getHeight());
 		break;
 	default:
 		std::cerr << "Over 4 cameras unsupported" << std::endl;
@@ -198,14 +216,6 @@ void Streamer::start() {
 	// The h.264 encoder doesn't like dimensions that aren't multiples of 16, so our output must be sized this way.
 	correctedWidth = ceil(outputWidth/16.0)*16;
 	correctedHeight = ceil(outputHeight/16.0)*16;
-	setupFramebuffer();
-	
-	videoWriter.openWriter(correctedWidth, correctedHeight, loopbackDev.c_str());
-
-	initialized = true;	
-
-	// Start the thread that listens for the signal from the driver station
-	std::thread(&Streamer::dsListener, this).detach();
 }
 
 void Streamer::setupFramebuffer() {
@@ -214,14 +224,20 @@ void Streamer::setupFramebuffer() {
 	frameBuffer.setTo(cv::Scalar{0, 128});
 	
 	cv::Mat source = cv::imread("/home/pi/vision-code/background.jpg");
-	if (source.cols == 0 || source.rows == 0) return;
+	if (source.cols == 0 || source.rows == 0){
+		std::cerr << "Background image read failed. (Either corrupted or non-existent file)" << std::endl;
+		return;
+	}
 	constexpr int tileX = 5, tileY = 3;
 	
 	int tileWidth = outputWidth / tileX, tileHeight = outputHeight / tileY;
 	
 	cv::Mat badColorTile, badChromaResTile, tile;
 	cv::resize(source, badColorTile, {tileWidth, tileHeight});
-	assert(badColorTile.type() == CV_8UC3);
+	if(badColorTile.type() != CV_8UC3){
+		std::cerr << "Bad image type for background." << std::endl;
+		return;
+	}
 	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
 	tile.create(tileHeight, tileWidth, CV_8UC2);
 	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
@@ -234,8 +250,7 @@ void Streamer::setupFramebuffer() {
 		tile.at<cv::Vec2b>(y,x) = {p1[0], avgU};
 		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
 	}
-	
-	assert(tile.type() == CV_8UC2);
+	assert(tile.type() == CV_8UC2); //Something is horrifically screwed up.
 	
 	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
 		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
@@ -243,7 +258,7 @@ void Streamer::setupFramebuffer() {
 }
 
 void Streamer::dsListener() {
-	
+	//Threaded listener
 	servFd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (servFd < 0) {
 		perror("socket");
@@ -277,57 +292,53 @@ void Streamer::dsListener() {
 		socklen_t clientAddrLen = sizeof(clientAddr);
 		int clientFd = accept(servFd, (struct sockaddr*) &clientAddr, &clientAddrLen);
 		if (clientFd < 0) {
-			perror("accept");
+			perror("accept (gstreamer)");
 			continue;
 		}
 
 		// At this point, a connection has been recieved from the driver station.
 		// gStreamer will now be set up to stream to the driver station.
-
 		handlingLaunchRequest = true;
-
-		for (auto i : gstInstances) {
-			
-			cout << "killing previous instance: " << i.pid << "   " << endl;
-			if (kill(i.pid, SIGTERM) == -1) {
-				perror("kill");
-			}
-			waitpid(i.pid, nullptr, 0);
+		killGstreamerInstance();
+ 
+		char bitrateStr[16];
+		ssize_t len = read(clientFd, bitrateStr, sizeof(bitrateStr)-1);
+		bitrateStr[len] = '\0';
+		int bitrate = atoi(bitrateStr);
+		if (bitrate <= 0) {
+			std::cerr << "Invalid bitrate, setting to 1,000,000";
+			bitrate = 1000000;
 		}
-		
-		char bitrate[16];
-		ssize_t len = read(clientFd, bitrate, sizeof(bitrate));
-		bitrate[len] = '\0';
+		this->bitrate = bitrate;
 		
 		const char message[] = "Launching remote GStreamer...\n";
 		if (write(clientFd, message, sizeof(message)) == -1) {
 			perror("write");
 		}
 		interceptStdio(clientFd, "Remote: ");
-
-		//if (close(clientFd) == -1) perror("close");
 		
 		// wait for client's gstreamer to initialize
-		sleep(2);
+		sleep(1);
 
 		char strAddr[INET6_ADDRSTRLEN];
+		this->strAddr=strAddr;
 		getnameinfo((struct sockaddr *) &clientAddr, sizeof(clientAddr), strAddr,sizeof(strAddr),
 		0,0,NI_NUMERICHOST);
 
-		//vector<string> outputVideoDevs = cameraDevs;
-		//outputVideoDevs[0] = loopbackDev;
-		launchGStreamer(correctedWidth, correctedHeight, strAddr, atoi(bitrate), "5809", loopbackDev);
-
-		// It was planned to draw an overlay over the video feed in the driver station.
-		// This sends the overlay data.
-		cout << "Starting UDP stream..." << endl;
-		//if (computer_udp) delete computer_udp;
-		//computer_udp = new DataComm(strAddr, "5806");
-
+		launchGStreamer(correctedWidth, correctedHeight, strAddr, bitrate, "5809", loopbackDev);
 		handlingLaunchRequest = false;
 	}
 }
-
+void Streamer::killGstreamerInstance(){
+	cout << "killing previous instance ..." << endl;
+	if(gstreamer_pid!=0){//Make sure we actually have a previous instance ...
+		if (kill(gstreamer_pid, SIGTERM) == -1) {
+			perror("kill");
+		}
+		waitpid(gstreamer_pid, nullptr, 0);
+		gstreamer_pid=0; //We currently have nothing going.
+	}
+}
 // Forwards everything in fromFd to toFd, with prefix before every line
 void interceptFile(int fromFd, int toFd, string prefix) {
 	std::thread([=]() {
@@ -413,7 +424,7 @@ bool Streamer::checkFramebufferReadiness(){
 		synchroCameras[i] = 
 		bestFrameTime / frameTimes[i] > 0.85 // If the camera is fast
 		 // and it's not dead
-		 && time - cameraReaders[i]->last_update < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
+		 && time - cameraReaders[i]->getLastUpdate() < std::chrono::duration<double>(1.5*std::min(frameTimes[i], 0.07));
 		 
 	}
 	// If there are no synchro cameras (unlikely, but possible if framerates are changing) disregard deadness
@@ -445,7 +456,7 @@ void Streamer::pushFrame(int i) {
 		switch(i){
 			case 0: { //Vision camera
 				
-				cv::Mat visionFrame = frameBuffer.colRange(0, visionCamera->width).rowRange(0, visionCamera->height);
+				cv::Mat visionFrame = frameBuffer.colRange(0, visionCamera->getWidth()).rowRange(0, visionCamera->getHeight());
 				visionCamera->getMat().copyTo(visionFrame);
 
 				// Draw an overlay on the frame before handing it off to gStreamer
@@ -456,18 +467,18 @@ void Streamer::pushFrame(int i) {
 			}
 			case 1: //Second camera
 				cameraReaders[1]->getMat().copyTo(frameBuffer
-				.colRange(outputWidth - cameraReaders[1]->width, outputWidth)
-				.rowRange(0, cameraReaders[1]->height));
+				.colRange(outputWidth - cameraReaders[1]->getWidth(), outputWidth)
+				.rowRange(0, cameraReaders[1]->getHeight()));
 				break;
 			case 2: //Third camera
 				cameraReaders[2]->getMat().copyTo(frameBuffer
-				.colRange(0, cameraReaders[2]->width)
-				.rowRange(outputHeight - cameraReaders[2]->height, outputHeight));
+				.colRange(0, cameraReaders[2]->getWidth())
+				.rowRange(outputHeight - cameraReaders[2]->getHeight(), outputHeight));
 				break;
 			case 3: //Fourth camera (untested)
 				cameraReaders[3]->getMat().copyTo(frameBuffer
-				.colRange(outputWidth - cameraReaders[3]->width, outputWidth)
-				.rowRange(outputHeight - cameraReaders[3]->height, outputHeight));
+				.colRange(outputWidth - cameraReaders[3]->getWidth(), outputWidth)
+				.rowRange(outputHeight - cameraReaders[3]->getHeight(), outputHeight));
 				break;
 			default:
 				cerr << "More than four cameras are unsupported at this time." << endl;
@@ -486,7 +497,7 @@ void Streamer::pushFrame(int i) {
 		if (elapsed >= std::chrono::seconds(1)) {
 			cout << "In the past " << std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count()
 			<< " seconds, " << frameCount << " pushed frames: ";
-			for (int i = 0; i < cameraFrameCounts.size(); ++i) {
+			for (unsigned int i = 0; i < cameraFrameCounts.size(); ++i) {
 				cout << cameraFrameCounts[i] << " from cam " << i;
 				if (i != cameraFrameCounts.size() - 1) cout << ", ";
 				cameraFrameCounts[i] = 0;
@@ -502,4 +513,98 @@ void Streamer::pushFrame(int i) {
 		}
 	}
 	frameLock.unlock();
+}
+
+string Streamer::parseControlMessage(string command, string arguments){
+
+	std::stringstream status=std::stringstream("");
+
+	std::string camera_string;
+	std::string parameters;
+
+	size_t delimiter_index = arguments.find(':');
+	camera_string=arguments.substr(0,delimiter_index);
+	if(delimiter_index==string::npos || delimiter_index==arguments.length()-1){
+		//Either the delimiter doesn't exist, or it's at the end of the string with nothing after it.
+		parameters="";
+	}else{
+		parameters=arguments.substr(delimiter_index+1,string::npos);
+		//(Yes, this entire if statement is technically redundant, as trying to read from string::npos as a start will return an empty substr.)
+		//However, that requires knowing specifics of string implementation that would be confusing to have to decypher. 
+	}
+	std::stringstream cameraSegment=std::stringstream(camera_string);
+	std::string buffer;
+	std::vector<unsigned int> cameras;
+	while(getline(cameraSegment,buffer,',')){
+		unsigned int cam_no;
+		try{
+			cam_no=std::stoi(buffer);
+			cameras.push_back(cam_no);
+		}catch(std::exception& e){ // stoi threw an exception
+			status << buffer <<  ":-1:INVALID CAMERA NO" << '\n';
+		}
+	} 
+	if(cameras.size()==0){
+		//We didn't actually get any camera numbers.
+		return "UNPARSABLE MESSAGE (No cameras specified)\n";
+	}
+	for(unsigned int i : cameras){
+		if(i>=cameraReaders.size()){
+			status << i << ":-1:INVALID CAMERA NO" << "\n";
+			continue;
+		}
+		string return_status=controlMessage(i,command, parameters);
+		status << i << ":" << return_status << "\n";
+	}
+	return status.str(); //Delightful.
+
+}
+string Streamer::controlMessage(unsigned int cam_no, string command, string parameters){
+	
+	std::stringstream status=std::stringstream("");
+	ThreadedVideoReader* camera = cameraReaders.at(cam_no).get();
+
+	//Resolution command
+	if(command=="resolution"){
+		frameLock.lock(); //Spooky bad times here.
+		std::cout << "@PARAMS:" << parameters << std::endl;
+		std::stringstream toParse=std::stringstream(parameters);
+		unsigned int width,height;
+		toParse >> width;
+		toParse >> height;
+		if(toParse.fail()){
+			frameLock.unlock(); //Goddarn me.
+			return "-1:INVALID RESOLUTION (Not unsigned int)";
+		}
+		int retval = camera->setResolution(width,height);
+		status << retval << ":" << ((retval==0) ? "SUCCESS" : "FAILURE");
+		if(retval==0){
+			handlingLaunchRequest=true;
+			bool relaunchingGstreamer = gstreamer_pid != 0;
+			if (relaunchingGstreamer) {
+				std::cout << "Killing previous gstreamer instance..." << std::endl;
+				killGstreamerInstance();
+			}
+			std::cout << "Calculating modified output width..." << std::endl;
+			calculateOutputSize();
+			std::cout << "Setting up framebuffer..." << std::endl;
+			setupFramebuffer();
+			std::cout << "Restarting Video Writer..." << std::endl;
+			restartWriter(); //Work Please
+			if (relaunchingGstreamer) {
+				std::cout << "Restarting new gstreamer stream..." << std::endl;
+				launchGStreamer(correctedWidth, correctedHeight, strAddr.c_str(), bitrate, "5809", loopbackDev);
+			}		
+			handlingLaunchRequest=false;
+		}
+		frameLock.unlock();
+	}else if(command == "reset"){
+		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
+		camera->reset(true);
+		return "0:RESET";
+	}
+	else{
+		status << "-1:Unrecognized command \"" << command << "\"\n";
+	}
+	return status.str();
 }

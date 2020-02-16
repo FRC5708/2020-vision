@@ -347,7 +347,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 
 	SolvePnpResult* resultUsing = nullptr;
 	
-	std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
+	if (verboseMode) std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
 		 << "result2: err:" << result1.pixError << " x:" << result2.tvec.at<double>(0) << " y:" << result2.tvec.at<double>(1) << " z:" << result2.tvec.at<double>(2) << "\n"
 		  << "maxError:" << pixMaxError << std::endl;
 
@@ -430,7 +430,7 @@ VisionTarget doVision(cv::Mat image) {
     //convert lines to contours
     std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
     
-    cout << "Found " << conts.size() << " contours" << std::endl; 
+    if (verboseMode) cout << "Found " << conts.size() << " contours" << std::endl; 
 	
 	std::vector<ProcessPointsResult> results;   
     for(auto c : conts){
@@ -442,6 +442,7 @@ VisionTarget doVision(cv::Mat image) {
         double contPerc = contArea/imageArea;
         if(contPerc > 0.01 && c.size() > 4){
             ContourCorners corners = getContourCorners(c);
+			if (!corners.valid) break;
             std::vector<cv::Point2f> cornerPoints;
             cornerPoints.push_back(corners.topleft); cornerPoints.push_back(corners.topright);
             cornerPoints.push_back(corners.bottomleft);cornerPoints.push_back(corners.bottomright);
@@ -462,7 +463,7 @@ VisionTarget doVision(cv::Mat image) {
                             results.push_back(result);
                         }
                     } catch(const cv::Exception& e){
-                        std::cout << "a cv::Exception was thrown" << std::endl;
+                        std::cout << e.what() << "was thrown by processPoints()" << std::endl;
                         continue;
                     }
                 

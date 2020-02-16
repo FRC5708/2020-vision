@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
 #include <unistd.h>
 #include <math.h>
 #include <string>
@@ -27,9 +28,10 @@
 #include "streamer.hpp"
 
 #include "DataComm.hpp"
+#include "ControlPacketReceiver.hpp"
 
 #include <dlfcn.h>
-#include <stdio.h>
+
 
 using std::cout; using std::cerr; using std::endl; using std::string;
 
@@ -49,66 +51,42 @@ std::condition_variable condition;
 void visionFrameNotifier(); //Declared later in namespace
 Streamer streamer(visionFrameNotifier);
 
-// recieves enable/disable signals from the RIO to conserve thermal capacity
-// Also sets exposure when actively driving to target
-void ControlSocket() {
-	struct addrinfo hints;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;   /* For wildcard IP address */
+//Callback function passed into ControlPacketReceiver.
+// recieves enable/disable signals from the RIO to conserve thermal capacity.
+// Also sets exposure when actively driving to target.
+// Also allows control packets to be sent to modify camera values. (See streamer.hpp:parseControlMessage() for more information)
+string parseControlMessage(string message) {
+	
+	std::stringstream status=std::stringstream("");
 
-	struct addrinfo *result;
-
-	int error = getaddrinfo(nullptr, "5805", &hints, &result);
-	if (error != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+	unsigned int indexOfDelimiter=message.find(':');
+	if (indexOfDelimiter == string::npos 
+	&& message[message.length() - 1] == '\n') {
+		indexOfDelimiter = message.length() - 1;
 	}
-
-	int sockfd;
-	for (struct addrinfo *rp = result; rp != NULL; rp = rp->ai_next) {
-			sockfd = socket(rp->ai_family, rp->ai_socktype,
-					rp->ai_protocol);
-		if (sockfd != -1) {
-
-			if (bind(sockfd, rp->ai_addr, rp->ai_addrlen) == 0) break;
-			else {
-				perror("failed to bind to control socket");
-				close(sockfd);
-				sockfd = -1;
-			}
+	std::string command=message.substr(0,indexOfDelimiter);
+		if (command == "reset" || command == "resolution") {
+			if(indexOfDelimiter >= message.length()){
+			//There just isn't a : in there.
+			return "UNPARSABLE MESSAGE (No colon-seperator)\n";
 		}
-	}
-	freeaddrinfo(result);
-
-	if (sockfd == -1) {
-		std::cerr << "could not connect to control socket" << std::endl;
-		return;
-	}
-	fcntl(sockfd, F_SETFD, fcntl(sockfd, F_GETFD) | FD_CLOEXEC);
-
-	while (true) {
-		char buf[66537];
-		ssize_t recieveSize = recvfrom(sockfd, buf, sizeof(buf) - 1, 
-		0, nullptr, nullptr);
-		if (recieveSize > 0) {
-			buf[recieveSize] = '\0';
-			cout << buf << endl;
-			string msgStr(buf);
-			if (msgStr.find("ENABLE") != string::npos) visionEnabled = true;
-			if (msgStr.find("DISABLE") != string::npos) visionEnabled = false;
-			if (msgStr.find("DRIVEON") != string::npos) streamer.setLowExposure(true);
-			if (msgStr.find("DRIVEOFF") != string::npos) streamer.setLowExposure(false);
+		string arguments = message.substr(indexOfDelimiter+1,string::npos);
+		if(arguments[arguments.length()-1]=='\n'){
+			arguments=arguments.substr(0,arguments.length()-1); //Chop the newline off
 		}
-		else if (recieveSize < 0) {
-			perror("control data recieve error");
-		}
-		else std::cerr << "empty packet??" << std::endl;
+		
+		return streamer.parseControlMessage(command, arguments);
 	}
+	else if (command == "visionEnable") visionEnabled = true;
+	else if (command == "visionDisable") visionEnabled = false;
+	else if (command == "lowExposureOn") streamer.setLowExposure(true);
+	else if (command == "lowExposureOff") streamer.setLowExposure(false);
+	else return "Invalid command " + command + "\n";
+	
+	return "Success\n";
 }
 
 void VisionThread() {
-	// give this thread a lower priority
 	errno = 0;
 	nice(5);
 	if (errno != 0) perror("nice");
@@ -127,7 +105,7 @@ void VisionThread() {
 		// currentFrameTime serves as a unique marker for this frame
 		lastFrameTime = currentFrameTime;
 		lastResults = doVision(streamer.getBGRFrame());
-		
+				
 		if (lastResults.calcs.distance != 0) rioComm.sendData(lastResults.calcs, lastFrameTime);		
 	}
 }
@@ -139,7 +117,7 @@ void setDefaultCalibParams() {
 	//constexpr double radFOV = (69.0/180.0)*M_PI;
 	constexpr double radFOV = (78.0/180.0)*M_PI;
 	const double pixFocalLength = tan((M_PI_2) - radFOV/2) * sqrt(pow(calib::width, 2) + pow(calib::height, 2))/2; // pixels. Estimated from the camera's FOV spec.
-	
+
 	static double cameraMatrixVals[] {
 		pixFocalLength, 0, ((double) calib::width)/2,
 		0, pixFocalLength, ((double) calib::height)/2,
@@ -149,7 +127,6 @@ void setDefaultCalibParams() {
 	// distCoeffs is empty matrix
 }
 bool readCalibParams(const std::string path) {
-	cout << "Reading calibration data from " << path << endl;
 	cv::FileStorage calibFile;
 	calibFile.open(path.c_str(), cv::FileStorage::READ);
 	if (!calibFile.isOpened()) {
@@ -187,7 +164,7 @@ void changeCalibResolution(int width, int height) {
 
 	calib::width = width; calib::height = height;
 	
-	cout << "camera matrix set to: " << calib::cameraMatrix << endl;
+	cout << "Vision camera matrix set to: \n" << calib::cameraMatrix << endl;
 }
 
 // Test the vision system, feeding it a static image.
@@ -198,24 +175,19 @@ void doImageTesting(const char* path) {
 	cout << "image size: " << image.cols << 'x' << image.rows << endl;
 	changeCalibResolution(image.cols, image.rows);
 
-	auto te = doVision(image);
+	try {
+		doVision(image);
+	}
+	catch (std::exception& e) {
+		std::cerr << "doVision threw " << e.what() << std::endl;
+	}
 	cout << "Testing Path: " << path << std::endl;
-	/*for(auto &i:te){
-		auto calc=i.calcs;
-		cout << "Portland: " << calc.isPort << " Distance: " << calc.distance << " tape: " << calc.tapeAngle << " robot: " << calc.robotAngle << std::endl;
-		cout << "L: " << i.left.x << ":" << i.left.y << " " << i.left.width << "," << i.left.height
-		<< " R: " << i.right.x << ":" << i.right.y << " " << i.right.width << "," << i.right.height << std::endl;
-	}*/
 }
 bool fileIsImage(char* file) {
 	string path(file);
 	string extension = path.substr(path.find_last_of(".") + 1);
 	for (auto & c: extension) c = toupper(c);
 	return extension == "PNG" || extension == "JPG" || extension == "JPEG";
-}
-
-void chldHandler(int sig, siginfo_t *info, void *ucontext) {
-	streamer.handleCrash(info->si_pid);
 }
 void drawTargets(cv::Mat drawOn) {
 	drawVisionPoints(lastResults.drawPoints, drawOn);
@@ -245,6 +217,9 @@ void visionFrameNotifier(){
 		condition.notify_one();
 	}
 }
+void chldHandler(int sig, siginfo_t *info, void *ucontext) {
+	streamer.handleCrash(info->si_pid);
+}
 int main(int argc, char** argv) {
 	// Enable or disable verbose output
 	verboseMode = false;
@@ -272,6 +247,14 @@ int main(int argc, char** argv) {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
+
+	// Kill other instances of the program and its children that might be hanging around
+	system("killall --quiet gst-launch-1.0");
+	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
+	// Wait for the cameras to fully close
+	if (killallResponse == 0) {
+		sleep(1);
+	}
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
 	signal(SIGPIPE, SIG_IGN);
@@ -285,7 +268,7 @@ int main(int argc, char** argv) {
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART | SA_NOCLDSTOP | SA_SIGINFO;
 	sa.sa_sigaction = &chldHandler;
-	if (sigaction(SIGCHLD, &sa, 0) == -1) {
+	if (sigaction(SIGCHLD, &sa, 0) == -1) {//Note: we have a *lot* of different threads running now. What if something other than gstreamer crashes? - The handler checks the crashed pid to make sure it's gstreamer, and threads within the same process don't send SIGCHLD
 		perror("sigaction");
 		exit(1);
 	}
@@ -309,9 +292,7 @@ int main(int argc, char** argv) {
 	// Scale the calibration parameters to match the current resolution
 	changeCalibResolution(streamer.getVisionCameraWidth(), streamer.getVisionCameraHeight());
 
-	std::thread controlSockThread(&ControlSocket);
-    //std::thread visThread(&VisionThread);
-	VisionThread();
-
+	ControlPacketReceiver receiver=ControlPacketReceiver(&parseControlMessage,5805);
+    VisionThread();
 	return 0;
 }

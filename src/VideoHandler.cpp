@@ -17,30 +17,33 @@ Magic and jankyness lies here. This class communicates to the cameras and to gSt
  haven't tested (especially non-usb cameras) might not work.
 */
 
-VideoReader::VideoReader(int width, int height, const char* file) {
-	this->width = width; this->height = height; deviceFile = file;
-}
-bool VideoReader::tryOpenReader() {
 
+VideoReader::VideoReader(int width, int height, const char* file) : width(width),height(height),deviceFile(std::string(file)){
+}
+
+bool VideoReader::tryOpenReader(bool isClosed) {
 	// http://jwhsmith.net/2014/12/capturing-a-webcam-stream-using-v4l2/
 	// https://jayrambhia.com/blog/capture-v4l2
 
-	while ((camfd = open(deviceFile.c_str(), O_RDWR|O_CLOEXEC)) < 0) {
-		perror("open");
-		if (errno == EBUSY) {
-			sleep(1);
+	if (isClosed) {
+		while ((camfd = open(deviceFile.c_str(), O_RDWR|O_CLOEXEC)) < 0) {
+			perror("open");
+			if (errno == EBUSY) {
+				sleep(1);
+			}
+			else return false;
 		}
-		else return false;
-	}
-
-	struct v4l2_capability cap;
-	if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
-		perror("VIDIOC_QUERYCAP");
-		return false;
-	}
-	if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
-		fprintf(stderr, "The device does not handle single-planar video capture.\n");
-		return false;
+		//TODO:MOVEME!
+		queryResolutions();
+		struct v4l2_capability cap;
+		if(ioctl(camfd, VIDIOC_QUERYCAP, &cap) < 0){
+			perror("VIDIOC_QUERYCAP");
+			return false;
+		}
+		if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)){
+			fprintf(stderr, "The device does not handle single-planar video capture.\n");
+			return false;
+		}
 	}
 
 	struct v4l2_format format;
@@ -69,14 +72,13 @@ bool VideoReader::tryOpenReader() {
 		perror("Setting framerate: VIDIOC_G_PARM");
 	}
 	else {
-		std::cout << "Attempting to maximize framerate by setting frame time to 1/120" << std::endl;
 		streamparm.parm.capture.capturemode |= V4L2_CAP_TIMEPERFRAME;
 		streamparm.parm.capture.timeperframe.numerator = 1;
 		streamparm.parm.capture.timeperframe.denominator = 1000;
 		if(ioctl(camfd, VIDIOC_S_PARM, &streamparm) !=0) {
 			perror("Setting framerate: VIDIOC_S_PARM");
 		}
-		else std::cout << "Frame time is: " << streamparm.parm.capture.timeperframe.numerator 
+		else std::cout << "Frame time for " << deviceFile << " is: " << streamparm.parm.capture.timeperframe.numerator 
 		<< "/" << streamparm.parm.capture.timeperframe.denominator << std::endl;
 	}
 
@@ -91,7 +93,6 @@ bool VideoReader::tryOpenReader() {
 	}
 	memset(&bufferinfo, 0, sizeof(bufferinfo));
 
-	std::cout << "buffer count: " << bufrequest.count << std::endl;
 	buffers.resize(bufrequest.count);
 	
 
@@ -139,8 +140,8 @@ bool VideoReader::tryOpenReader() {
 	}
 	return true;
 }
-void VideoReader::openReader() {
-	while (!tryOpenReader()) {
+void VideoReader::openReader(bool isClosed) {
+	while (!tryOpenReader(isClosed)) {
 		std::cerr << "Failed to open " << deviceFile << "! Retrying in 3 seconds..." << std::endl;
 		closeReader();
 		sleep(3);
@@ -148,6 +149,10 @@ void VideoReader::openReader() {
 }
 
 void VideoReader::closeReader() {
+	stopStreaming();
+	if (close(camfd) < 0) perror("close"); //Close the camera fd.
+}
+void VideoReader::stopStreaming() {
 	int type = bufferinfo.type;
 	if (ioctl(camfd, VIDIOC_STREAMOFF, &type) < 0) perror("VIDEOC_STREAMOFF"); //Send the off ioctl.
 
@@ -169,9 +174,7 @@ void VideoReader::closeReader() {
 	if(ioctl(camfd, VIDIOC_REQBUFS, &bufrequest) < 0){
 		perror("Deallocating buffers: VIDIOC_REQBUFS");
 	}
-
-	if (close(camfd) < 0) perror("close"); //Close the camera fd.
-
+	
 	hasFirstFrame = false;
 }
 
@@ -205,7 +208,29 @@ bool VideoReader::grabFrame() {
 	hasFirstFrame = true;
 	return true;
 }
-
+/* Get and cache the list of acceptable resolution pair values for the used format. */
+void VideoReader::queryResolutions(){
+	if(hasResolutions) return;
+	hasResolutions=true;
+	v4l2_frmsizeenum capability;
+	capability.index=1;
+	capability.pixel_format=V4L2_PIX_FMT_YUYV;
+	while(ioctl(camfd,VIDIOC_ENUM_FRAMESIZES,&capability)==0){
+		if(capability.type==V4L2_FRMSIZE_TYPE_DISCRETE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_DISCRETE,.discrete=capability.discrete});
+		/*else{ if(capability.type==V4L2_FRMSIZE_TYPE_STEPWISE) resolutions.push_back(resolution{.type=V4L2_FRMSIZE_TYPE_STEPWISE,.stepwise=capability.stepwise});*/
+		else{ std::cout << "Non-discrete type for vl42 resolution. It's (currently) not worth our time to use this." << std::endl;}
+		capability.index++; //Increment the thing.
+		// ^ the most unhelpful comment ever
+	}
+	std::stringstream resolution_stream;  //If we just directly cout, then the different threads print their resolutions in an intersperced manner. 
+	resolution_stream << "Supported Resolutions for camera " << deviceFile << ":" << std::endl;
+	for(auto &i : resolutions){	
+		if(i.type==V4L2_FRMSIZE_TYPE_DISCRETE){
+			resolution_stream << "Discrete: " << i.discrete.width << " : " << i.discrete.height << std::endl;
+		}
+	}
+	std::cout << resolution_stream.str(); //Print the entire resolution list in one go, for thread safety.
+}
 
 cv::Mat VideoReader::getMat() {
 	if (hasFirstFrame) return cv::Mat(height, width, CV_8UC2, currentBuffer);
@@ -214,6 +239,24 @@ cv::Mat VideoReader::getMat() {
 		throw NotInitializedException();
 	}
 }   
+void VideoReader::reset(bool hard){
+	//hard = true;
+	if (hard) {
+		closeReader();
+		sleep(4); //Can this be lowered? I've changed it from 4 to 2, here's hoping it doesn't make anything explode...
+		openReader(true);
+	}
+	else {
+		stopStreaming();
+		openReader(false);
+	}
+}
+int VideoReader::getWidth(){
+	return this->width; 
+}
+int VideoReader::getHeight(){
+	return this->height;
+}
 
 void VideoReader::setExposureVals(bool isAuto, int exposure) {
 	
@@ -261,8 +304,7 @@ ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file
 	last_update = timeout_clock.now();
 
 	mainLoopThread = std::thread([this]() {
-		openReader();
-		
+		openReader();	
 		resetTimeoutThread = std::thread(&ThreadedVideoReader::resetterMonitor,this); //Start monitoring thread.
 
 		while (true) {
@@ -290,19 +332,51 @@ double ThreadedVideoReader::getMeanFrameInterval() {
 void ThreadedVideoReader::resetterMonitor(){ // Seperate thread that resets the camera buffers if it hangs.
 	while (true) {
 		if((timeout_clock.now()-last_update) > ioctl_timeout){
-			std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
-			resetLock.lock();
-			
-           closeReader();
-		   sleep(4);
-		   openReader();
-
-		   last_update = timeout_clock.now();
-
-			resetLock.unlock();
+			if (hasFirstFrame){
+				std::cerr << "Camera " << deviceFile << " not responding. Resetting..." << std::endl;
+				reset();
+			} 
+			else { // last reset didn't work
+				std::cerr << "Camera " << deviceFile << " still not responding. Hard resetting..." << std::endl;
+				reset(true);
+			}
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Because I'm a janky spinlock
 	}
+}
+void ThreadedVideoReader::reset(bool hard){
+	std::cout << "Camera " << deviceFile << " resetting..." << std::endl;
+	resetLock.lock();
+	VideoReader::reset(hard);
+	last_update = timeout_clock.now();
+	resetLock.unlock();
+	std::cout << "Camera " << deviceFile << " reset." << std::endl;
+
+}
+const std::chrono::steady_clock::time_point ThreadedVideoReader::getLastUpdate(){
+	return last_update;
+}
+/* int ThreadedVideoReader::setResolution(int width, int height)
+** This function attempts to set the resolution of the camera stream to the given values, 
+**  resetting the feed in the process.
+** It returns 0 upon success, 1 if given invalid resolution dimensions for the camera, 
+**  and 2 if some other error occurs.
+** It is guaranteed to lock the camera until it is done.
+*/
+int ThreadedVideoReader::setResolution(unsigned int width,unsigned int height){
+	bool foundValidResolution=false;
+	for(auto& res : resolutions){ //Yes, this is less efficient than it could be, but we're talking about with a list with <50 items here.
+		if(res.discrete.width==width && res.discrete.height==height){
+			foundValidResolution=true; 
+			break;
+		}
+	}
+	if(!foundValidResolution) return 1; //Given resolution is invalid.
+	this->width=width; this->height=height;
+	std::cout << "Changing resolution to " << width << ":" << height << " ..." << std::endl;
+	reset();
+	std::cout << "Succesfully reset resolution" << std::endl;
+	return 0;
 }
 
 
@@ -329,6 +403,10 @@ void VideoWriter::openWriter(int width, int height, const char* file) {
 	if( t < 0 ) {
 		exit(t);
 	}
+}
+void VideoWriter::closeWriter(){
+	std::cout << "Closing VideoWriter: " << v4l2lo << std::endl;
+	close(v4l2lo);
 }
 
 void VideoWriter::writeFrame(cv::Mat& frame) {
