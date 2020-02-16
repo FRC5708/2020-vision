@@ -460,7 +460,7 @@ VisionTarget doVision(cv::Mat image) {
                     }
                 
                     for(auto target : results){
-                        std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
+                        if (verboseMode) std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
                     }
                 //}
             }

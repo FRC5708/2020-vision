@@ -63,28 +63,28 @@ Streamer::Streamer(std::function<void(void)> callback){
 */
 pid_t Streamer::get_previous_gstreamer_pid(){
 
-	int file_fd=-1; //file descriptor of file containign pid
+	int file_fd=-1; //file descriptor of file containing pid
 	pid_t gst_pid=0; //Value that will be returned. Remains 0 if unable to succesfully read file.
 	ssize_t count=-1; //Count read by read call.
 	int close_val=-1; //Return of close attempt.
 	int temp_fd=-1; //File descriptor temporarily used to create, and then close the file if it didn't exist.
 	
 	//Open the file, and create it if it doesn't exist
-	file_fd=open(GSTREAMER_PREVIOUS_PID_FILE_PATH,O_RDWR | O_CLOEXEC);
+	file_fd=open(GSTREAMER_PREVIOUS_PID_FILE_PATH, O_RDONLY | O_CLOEXEC);
 	if(file_fd==-1){
 		if(errno==ENOENT){
 			//The file doesn't exist. Let's make it.
 			std::cout << "File "<< GSTREAMER_PREVIOUS_PID_FILE_PATH << " doesn't exist. Creating..." << std::endl;
 			temp_fd=creat(GSTREAMER_PREVIOUS_PID_FILE_PATH,S_IRUSR | S_IWUSR);
 			if(temp_fd == -1){
-				perror("pid_t Streamer::get_previous_gstreamer_pid() -- creat: ");
+				perror("pid_t Streamer::get_previous_gstreamer_pid() -- creat");
 			}
 			close(temp_fd);
 			goto CLEANUP;
 		}
 		else{
 			//Who knows what happened. ~(-_-)~
-			perror("pid_t Streamer::get_previous_gstreamer_pid() -- open: ");
+			perror("pid_t Streamer::get_previous_gstreamer_pid() -- open");
 			goto CLEANUP;
 		}
 	}
@@ -92,7 +92,7 @@ pid_t Streamer::get_previous_gstreamer_pid(){
 	//Read from the file.
 	count = read(file_fd,&gst_pid,sizeof(pid_t));
 	if(count == -1){
-		perror("pid_t Streamer::get_previous_gstreamer_pid() -- read: ");
+		perror("pid_t Streamer::get_previous_gstreamer_pid() -- read");
 		gst_pid=0;
 		goto CLEANUP;
 	}
@@ -105,7 +105,7 @@ pid_t Streamer::get_previous_gstreamer_pid(){
 	//Cleanup
 CLEANUP:
 	close_val=close(file_fd);
-	if(close_val==-1) perror("id_t Streamer::get_previous_gstreamer_pid() -- close: ");
+	if(close_val==-1) perror("pid_t Streamer::get_previous_gstreamer_pid() -- close");
 	if(gst_pid!=0) std::cout << "Succesfully read previous gst_pid of " << gst_pid << " from file." << std::endl;
 	return gst_pid;
 
@@ -118,7 +118,7 @@ bool Streamer::write_gstreamer_pid_to_file(){
 	bool failed = false;
 	int retval;
 
-	int write_fd = open(GSTREAMER_PREVIOUS_PID_FILE_PATH,O_TRUNC | O_RDWR | O_CLOEXEC);
+	int write_fd = open(GSTREAMER_PREVIOUS_PID_FILE_PATH, O_TRUNC | O_WRONLY | O_CLOEXEC);
 	if(write_fd==-1){
 		perror("Streamer::write_gstreamer_pid_to_file() -- open");
 		failed=true;
