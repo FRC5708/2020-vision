@@ -115,8 +115,25 @@ CLEANUP:
 ** TODO: IMPLEMENT ME!
 */
 bool Streamer::write_gstreamer_pid_to_file(){
-	//TODO: IMPLEMENT ME!
-	return false;
+	bool failed = false;
+	int retval;
+
+	int write_fd = open(GSTREAMER_PREVIOUS_PID_FILE_PATH,O_TRUNC | O_RDWR | O_CLOEXEC);
+	if(write_fd==-1){
+		perror("Streamer::write_gstreamer_pid_to_file() -- open");
+		failed=true;
+		goto CLEANUP;
+	}
+
+	retval=write(write_fd,&gstreamer_pid,sizeof(gstreamer_pid));
+	if(retval==-1){
+		perror("Streamer::write_gstreamer_pid_to_file() -- write");
+		failed=true;
+		goto CLEANUP;
+	}
+CLEANUP:
+	close(write_fd);
+	return !failed;
 }
 void Streamer::launchGStreamer(int width, int height, const char* recieveAddress, int bitrate, string port, string file) {
 	cout << "launching GStreamer, targeting " << recieveAddress << endl;
@@ -139,6 +156,8 @@ void Streamer::launchGStreamer(int width, int height, const char* recieveAddress
 	pid_t pid = runCommandAsync(strCommand);
 
 	gstreamer_pid=pid;
+	bool retval=write_gstreamer_pid_to_file();
+	if(retval==false) std::cerr << "write_gstreamer_pid_to_file() failed..." << std::endl;
 	gstreamer_command=strCommand;
 
 }
