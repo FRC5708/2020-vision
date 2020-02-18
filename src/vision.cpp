@@ -74,7 +74,7 @@ ContourCorners getContourCorners(std::vector<cv::Point>& contour) {
 		if (approx.size() == 4 ) break;
 		if(fittingStep < 0.0000001){
 			//Failure case; 
-			std::cout << "approxPolyDP was unable to find a valid quadrilateral. Be forewarned." << std::endl;
+			std::cerr << "approxPolyDP was unable to find a valid quadrilateral. Be forewarned." << std::endl;
 			result.valid = false;
 			return result;
 		}
@@ -270,7 +270,7 @@ struct SolvePnpResult {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
 
 		if (matContainsNan(rvec) || matContainsNan (tvec)) {
-			std::cout << "solvePnP returned NaN!\n";
+			std::cerr << "solvePnP returned NaN!\n";
 			valid = false;
 			return;
 		} 
@@ -360,7 +360,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	auto rsize = resultUsing->rvec.size();
 	auto tsize = resultUsing->tvec.size();
 	if (!(rsize == cv::Size(1, 3) || rsize == cv::Size(3, 1)) && (tsize == cv::Size(1, 3) || tsize == cv::Size(3, 1))) {
-		std::cout << "SolvePnP returned stuff with wrong sizes" << std::endl;
+		std::cerr << "SolvePnP returned stuff with wrong sizes" << std::endl;
 		return { false, {}};
 	}
 
@@ -372,7 +372,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	*/
 
 	if (isNanOrInf(resultUsing->output.distance) || isNanOrInf(resultUsing->output.robotAngle) || isNanOrInf(resultUsing->output.tapeAngle)) {
-		std::cout << "encountered NaN or Infinity" << std::endl;
+		std::cerr << "encountered NaN or Infinity" << std::endl;
 		return { false, {} };
 	}
 	
@@ -455,7 +455,7 @@ VisionTarget doVision(cv::Mat image) {
                             results.push_back(result);
                         }
                     } catch(const cv::Exception& e){
-                        std::cout << e.what() << "was thrown by processPoints()" << std::endl;
+                        std::cerr << e.what() << "was thrown by processPoints()" << std::endl;
                         continue;
                     }
                 

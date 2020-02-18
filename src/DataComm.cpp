@@ -90,8 +90,7 @@ void DataComm::sendData(VisionData data, std::chrono::time_point<std::chrono::st
         string sendStr = toSend.str();
         
         if (send(fd, sendStr.c_str(), sendStr.length(), 0) < 0 && errno!=EAGAIN) {
-            perror("Failed to send data");
-            cout << errno << endl;
+            perror("Failed to send data to robot");
             setupSocket();
         }
         cout << sendStr << std::endl;
@@ -99,8 +98,7 @@ void DataComm::sendData(VisionData data, std::chrono::time_point<std::chrono::st
 };
 void DataComm::sendDraw(VisionDrawPoints* data){
     if(send(fd,(void*) data,sizeof(VisionDrawPoints),0) < 0){
-        perror("Failed to send data!");
-        cout << errno << endl;
+        perror("Failed to send draw points!");
         setupSocket();
     }
 }

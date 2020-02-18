@@ -83,7 +83,7 @@ void ControlPacketReceiver::receivePackets(){
 			char controlMessage[65536];
 			int len = read(clientFd, controlMessage, sizeof(controlMessage)-1);
 			if(len<=0){
-				std::cout << "Connection to controller broken." << std::endl;
+				std::cerr << "Connection to controller broken." << std::endl;
 				break; //Our connection has been broken.
 			} 
 			std::cout << "Received control message " << controlMessage << std::endl;
@@ -92,7 +92,7 @@ void ControlPacketReceiver::receivePackets(){
 			std::cout << "Control Message status: \n" << status << std::endl;
 			int retval=write(clientFd,status.c_str(), status.length());
 			if(retval<0){
-				std::cout << "Connection to controller broken." << std::endl;
+				std::cerr << "Connection to controller broken." << std::endl;
 				break;
 			}
 		}

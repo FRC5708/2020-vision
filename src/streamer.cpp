@@ -118,7 +118,6 @@ void Streamer::setupCameras(){
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
-		std::cout << "DEBUG: cameraReaders pushed back " << i << std::endl;
 	}
 }
 
@@ -227,7 +226,7 @@ bool Streamer::checkFramebufferReadiness(){
 }
 void Streamer::pushFrame(int i) {
 	if(!initialized) {
-		cout << "recieved frame from " << i << " but not initialized yet (this theoretically shouldn't happen)" << endl;
+		std::cerr << "recieved frame from " << i << " but not initialized yet (this theoretically shouldn't happen)" << endl;
 		return;
 	}; //We're still setting up.
 	//cout << "Logging: received frame from " << i << endl;
@@ -562,7 +561,7 @@ string Streamer::controlMessage(unsigned int cam_no, string command, string para
 	//Resolution command
 	if(command=="resolution"){
 		frameLock.lock(); //Spooky bad times here.
-		std::cout << "@PARAMS:" << parameters << std::endl;
+
 		std::stringstream toParse=std::stringstream(parameters);
 		unsigned int width,height;
 		toParse >> width;
