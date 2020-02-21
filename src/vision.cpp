@@ -38,11 +38,11 @@ const double inchTapesWidthBottom = inchTapesWidthTop
  
 // Offsets of the camera from the center of the robot. 
 // TODO: Set me to my actual value!
-constexpr double inchCameraHeightAboveGround = 5*12; 
+constexpr double inchCameraHeightAboveGround = 24; 
 // Positive if the camera is on the left side of the robot
 constexpr double camLocalX = 0;
 // Positive if the camera is on the front side of the robot.
-constexpr double camLocalY = 0;
+constexpr double camLocalY = 14;
 
 struct ContourCorners {
 	cv::Point topleft, topright, bottomright, bottomleft;
