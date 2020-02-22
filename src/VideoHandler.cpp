@@ -238,6 +238,9 @@ cv::Mat VideoReader::getMat() {
 		if (flipImage) {
 			cv::Mat flipped;
 			cv::flip(frame, flipped, -1);
+			for (int x = 0; x < flipped.cols; x += 2) for (int y = 0; y < flipped.rows; ++y) {
+				std::swap(flipped.at<cv::Vec2b>(y, x)[1], flipped.at<cv::Vec2b>(y, x+1)[1]);
+			}
 			return flipped;
 		}
 		else return frame;
