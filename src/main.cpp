@@ -209,9 +209,7 @@ bool isTargetLocked(){
 void annotateFrame(cv::Mat& drawOn) {
 
 	//Draw vision points
-	for (auto i = lastResults.begin(); i < lastResults.end(); ++i) {
-		drawVisionPoints(i->drawPoints, drawOn);
-	}
+	drawVisionPoints(lastResults.drawPoints, drawOn);
 
 	cv::putText(
 		drawOn,

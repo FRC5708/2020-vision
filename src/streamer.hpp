@@ -16,7 +16,7 @@ class Streamer {
 	
 	// Common initialization stuff:
 public:
-	Streamer(std::function<void(void)>);
+	Streamer(std::function<void(void)>, std::function<void(cv::Mat&)>);
 	// Initializes streamer, scanning for cameras and setting up a socket that listens for the client
 	void start();
 	

@@ -32,7 +32,7 @@ vector<string> cameraNames = {
 };
 
 // --------- Initialization stuff -----------------
-Streamer::Streamer(std::function<void(void)> callback)
+Streamer::Streamer(std::function<void(void)> callback, std::function<void(cv::Mat&)> annotateFrame)
 : visionFrameNotifier(callback) {
 	gstreamer_pid=get_previous_gstreamer_pid();
 }
@@ -244,7 +244,7 @@ void Streamer::pushFrame(int i) {
 				visionCamera->getMat().copyTo(visionFrame);
 
 				// Draw an overlay on the frame before handing it off to gStreamer
-				if (annotateVisionFrame != nullptr) annotateVisionFrame(visionFrame);
+				if (annotateFrame != nullptr) annotateFrame(visionFrame);
 
 				visionFrameNotifier(); //New vision frame
 				break;
