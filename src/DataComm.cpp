@@ -71,19 +71,18 @@ DataComm::DataComm(const char* client_name, const char* port="5808") : client_na
 }
 
 
-void DataComm::sendData(std::vector<VisionData> data, std::chrono::time_point<std::chrono::steady_clock> timeFrom) {
+void DataComm::sendData(VisionData data, std::chrono::time_point<std::chrono::steady_clock> timeFrom) {
     std::stringstream toSend;
     
     if (fd < 0) setupSocket();
     
     if (fd >= 0) {
     
-        for (unsigned int i = 0; i != data.size(); ++i) {
-            char buf[200];
-            sprintf(buf, "#%d: isPort=%d distance=%f tapeAngle=%f robotAngle=%f\n",
-                    i, data[i].isPort, data[i].distance, data[i].tapeAngle, data[i].robotAngle);
-            toSend << buf;
-        }
+        
+        char buf[200];
+        sprintf(buf, "# distance=%f tapeAngle=%f robotAngle=%f\n", data.distance, data.tapeAngle, data.robotAngle);
+        toSend << buf;
+        
         toSend << "@" <<
         std::chrono::duration_cast<std::chrono::milliseconds>(clock.now() - timeFrom).count()
             << endl;
@@ -91,18 +90,15 @@ void DataComm::sendData(std::vector<VisionData> data, std::chrono::time_point<st
         string sendStr = toSend.str();
         
         if (send(fd, sendStr.c_str(), sendStr.length(), 0) < 0 && errno!=EAGAIN) {
-            perror("Failed to send data");
-            cout << errno << endl;
+            perror("Failed to send data to robot");
             setupSocket();
         }
-        cout << sendStr;
-    
+        cout << sendStr << std::endl;
 	}
 };
 void DataComm::sendDraw(VisionDrawPoints* data){
     if(send(fd,(void*) data,sizeof(VisionDrawPoints),0) < 0){
-        perror("Failed to send data!");
-        cout << errno << endl;
+        perror("Failed to send draw points!");
         setupSocket();
     }
 }

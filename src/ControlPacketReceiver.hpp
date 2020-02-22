@@ -23,9 +23,9 @@ private:
     volatile bool destroyReceiver=false; //Gets set to true when receiver's destructor is called. This is so we can properly clean up the network socket we create.
     int setupSocket(); //Initializes network socket.
     void receivePackets(); //Self-resetting loop that receives control packets. Runs on a seperate thread.
-    std::function<std::string(char* controlMessage)> parsePacketCallback; //Callback function that parses control messages received.
+    std::function<std::string(std::string controlMessage)> parsePacketCallback; //Callback function that parses control messages received.
 public:
-    ControlPacketReceiver(std::function<std::string(char*)> parsePacketCallback,short port=58000);
+    ControlPacketReceiver(std::function<std::string(std::string)> parsePacketCallback,short port=58000);
     ~ControlPacketReceiver();
     void start();
 };
