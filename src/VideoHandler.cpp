@@ -233,7 +233,15 @@ void VideoReader::queryResolutions(){
 }
 
 cv::Mat VideoReader::getMat() {
-	if (hasFirstFrame) return cv::Mat(height, width, CV_8UC2, currentBuffer);
+	if (hasFirstFrame) {
+		cv::Mat frame = cv::Mat(height, width, CV_8UC2, currentBuffer);
+		if (flipImage) {
+			cv::Mat flipped;
+			cv::flip(frame, flipped, -1);
+			return flipped;
+		}
+		else return frame;
+	}
 	else {
 		std::cerr << "Frame was requested from uninitialized camera " << deviceFile << "!" << std::endl;
 		throw NotInitializedException();
@@ -297,8 +305,10 @@ bool ThreadedVideoReader::grabFrame() {
 	}
 	return goodGrab;
 }
-ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback)
+ThreadedVideoReader::ThreadedVideoReader(int width, int height, const char* file, std::function<void(void)> newFrameCallback, bool flipped)
 : VideoReader(width, height, file) {
+	flipImage = flipped;
+	
 	this->newFrameCallback=newFrameCallback;
 	timeout_clock=std::chrono::steady_clock();
 	last_update = timeout_clock.now();

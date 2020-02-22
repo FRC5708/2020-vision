@@ -21,6 +21,8 @@
 #include <arpa/inet.h>
 
 
+constexpr bool flipVisionCamera = true;
+
 using std::cout; using std::cerr; using std::endl; using std::string; using std::vector;
 
 
@@ -115,7 +117,8 @@ void Streamer::setupCameras(){
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
-			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i), 
+			(i == 0 && flipVisionCamera))//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
