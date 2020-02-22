@@ -21,8 +21,6 @@
 #include <arpa/inet.h>
 
 
-constexpr bool flipVisionCamera = true;
-
 using std::cout; using std::cerr; using std::endl; using std::string; using std::vector;
 
 
@@ -31,6 +29,9 @@ using std::cout; using std::cerr; using std::endl; using std::string; using std:
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 vector<string> cameraNames = {
 	"C920_99EDB55F", "C615_603161B0", "C525_5FC6DE20", "C615_F961A370"
+};
+vector<bool> flipCameras = {
+	true, false, false, true
 };
 
 // --------- Initialization stuff -----------------
@@ -118,7 +119,7 @@ void Streamer::setupCameras(){
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i), 
-			(i == 0 && flipVisionCamera))//Bind callback to relevant id.
+			flipCameras[i])//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
