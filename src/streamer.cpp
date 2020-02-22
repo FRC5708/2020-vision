@@ -30,7 +30,7 @@ using std::cout; using std::cerr; using std::endl; using std::string; using std:
 // They are matched with device names from sysfs
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 vector<string> cameraNames = {
-	"C920_99EDB55F", "C615_603161B0", "C615_F961A370", "C525_5FC6DE20"
+	"C920_99EDB55F", "C615_603161B0", "C525_5FC6DE20", "C615_F961A370"
 };
 
 // --------- Initialization stuff -----------------
