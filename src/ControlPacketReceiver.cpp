@@ -60,6 +60,7 @@ int ControlPacketReceiver::setupSocket(){
 		perror("listen");
 		return -1;
 	}
+	fcntl(servFd, F_SETFD, fcntl(servFd, F_GETFD) | FD_CLOEXEC);
     return 0;
 }
 

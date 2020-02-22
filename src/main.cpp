@@ -37,7 +37,7 @@ using std::cout; using std::cerr; using std::endl; using std::string;
 
 
 // when false, drastically slows down vision processing
-volatile bool visionEnabled = true;
+volatile bool visionEnabled = false;
 
 VisionTarget lastResults;
 //std::vector<cv::Point> lastResults;
@@ -247,13 +247,28 @@ int main(int argc, char** argv) {
 		cerr << "usage: " << argv[0] << "[test image] [calibration parameters]" << endl;
 		return 1;
 	}
+	
 
-	// Kill other instances of the program and its children that might be hanging around
-	system("killall --quiet gst-launch-1.0");
-	int killallResponse = system("killall --quiet --older-than 1s 5708-vision");
+	// Kill other instances of the program
+	pid_t myPid = getpid();
+	FILE* pidsStream = popen("pgrep 5708-vision", "r");
+	char* pidString = nullptr;
+	size_t lineAlloced = 0;
+	bool killedPrevious = false;
+	while (getline(&pidString, &lineAlloced, pidsStream) > 0) {
+		
+		pid_t otherPid = atoi(pidString);
+		if (otherPid > 0 && otherPid != myPid){
+			kill(otherPid, SIGTERM);
+			std::cout << "Killed older instance of 5708-vision " << otherPid << std::endl;
+			killedPrevious = true;
+		} 
+	}
+	fclose(pidsStream);
+	
 	// Wait for the cameras to fully close
-	if (killallResponse == 0) {
-		sleep(1);
+	if (killedPrevious) {
+		sleep(2);
 	}
 	
 	// SIGPIPE is sent to the program whenever a connection terminates. We want the program to stay alive if a connection unexpectedly terminates.
@@ -285,6 +300,17 @@ int main(int argc, char** argv) {
 			std::cout << "Succesfully saved profiling data." << std::endl;
 		}
 		exit(0);
+	});
+	signal(SIGUSR2, [](int){
+		/* For testing purposes, this makes the program SEGFAULT immedietly upon receiving SIGUSR2.
+		** Obviously, don't send SIGUSR2 to the program without cause.
+		*/
+		std::cout << "SIGUSR2 received. Intentionally segfaulting..." << std::endl;
+		
+		//Volatile so the compiler doesn't realize this is a terrible idea.
+		//Dereferencing a nullptr is a segfault.
+		*((volatile int*)nullptr);
+ 
 	});
 	
 	// will fail if the file doesn't exist, and use the default params instead

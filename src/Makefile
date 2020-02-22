@@ -8,7 +8,7 @@ ODIR=obj
 %.o: %.cpp %.hpp
 	g++ -c -o $@ $< $(CXXFLAGS)
 
-OBJS=main.o RedContourGrip.o vision.o streamer.o DataComm.o VideoHandler.o ControlPacketReceiver.o GripHexFinder.o
+OBJS=main.o vision.o streamer.o DataComm.o VideoHandler.o ControlPacketReceiver.o GripHexFinder.o
 
 build: $(OBJS)
 	g++ $(COMMON_FLAGS) -o ../5708-vision $(OBJS) -lm -ldl `pkg-config --libs opencv4` -pthread

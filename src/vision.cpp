@@ -374,7 +374,7 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 		resultUsing = &result1;
 	}
 	
-	std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
+	if(verboseMode) std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
 
 
 	auto rsize = resultUsing->rvec.size();
@@ -480,7 +480,7 @@ VisionTarget doVision(cv::Mat image) {
                     }
                 
                     for(auto target : results){
-                        std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
+                        if (verboseMode) std::cout << "distance: " << target.t.calcs.distance << " robotAngle: " << target.t.calcs.robotAngle << std::endl;
                     }
                 //}
             }

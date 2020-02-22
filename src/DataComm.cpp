@@ -94,8 +94,7 @@ void DataComm::sendData(VisionData data, std::chrono::time_point<std::chrono::st
             cout << errno << endl;
             setupSocket();
         }
-        cout << sendStr;
-    
+        cout << sendStr << std::endl;
 	}
 };
 void DataComm::sendDraw(VisionDrawPoints* data){
