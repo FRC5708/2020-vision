@@ -57,6 +57,7 @@ void printContourCorners(ContourCorners corners) {
 	std::cout << "tl: " << corners.topleft << " tr: " << corners.topright << " bl: " << corners.bottomleft << " br: " << corners.bottomright;
 }
 
+bool contourCornersVerbose = false;
 ContourCorners getContourCorners(std::vector<cv::Point>& contour) {
 	//std::chrono::steady_clock clock;
 	//auto startTime = clock.now();
@@ -103,7 +104,7 @@ ContourCorners getContourCorners(std::vector<cv::Point>& contour) {
 			last_change=1;
 		}
 	}
-	if(verboseMode){
+	if(contourCornersVerbose){
 	end = std::chrono::steady_clock::now();
 	std::cout << "DEBUG: ApproxPolyDP initial solve time difference (ms): " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() <<std::endl;
 	begin=end;
@@ -120,7 +121,7 @@ ContourCorners getContourCorners(std::vector<cv::Point>& contour) {
 			fittingStep /= 2.0; //Decrease the step size.
 		}
 	}
-	if(verboseMode){
+	if(contourCornersVerbose){
 	end = std::chrono::steady_clock::now();
 	std::cout << "DEBUG: ApproxPolyDP refinement solve time difference (ms): " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() <<std::endl;
 	std::cout << "DEBUG: Final fittingError: " << fittingError << std::endl;
@@ -172,7 +173,20 @@ bool matContainsNan(cv::Mat& in) {
 	return false;
 }
 
+grip::GripHexFinder oldFinder;
 void drawVisionPoints(VisionDrawPoints& toDraw, cv::Mat& image) {
+	// Draw the threshold instead
+	if (false && !oldFinder.GetHslThresholdOutput()->empty()) {
+		oldFinder.GetHslThresholdOutput();
+		assert(oldFinder.GetHslThresholdOutput()->type() == CV_8U);
+		cv::Mat arr[] = { *oldFinder.GetHslThresholdOutput(), *oldFinder.GetHslThresholdOutput() };
+		cv::merge(arr, 2, image);
+		//cv::Mat bgr;
+		//cv::cvtColor(*oldFinder.GetHslThresholdOutput(), bgr, cv::COLOR_GRAY2BGR);
+		//colorConvertBGR2YUYV(bgr, image);
+	}
+	
+	
 	/*cv::Scalar mainColor(255, 0, 0);
 	cv::Scalar rodColor(0, 0, 255);
 	cv::Scalar rawPointColor(0, 255, 0);
@@ -275,7 +289,7 @@ struct SolvePnpResult {
 	rvec(rvec), tvec(tvec), pixError(reprojError) {
 		assert(tvec.type() == CV_64F && rvec.type() == CV_64F);
 
-		if (matContainsNan(rvec) || matContainsNan (tvec)) {
+		if (matContainsNan(rvec) || matContainsNan (tvec) || isnan(reprojError)) {
 			std::cerr << "solvePnP returned NaN!\n";
 			valid = false;
 			return;
@@ -351,27 +365,39 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	// SOLVEPNP_IPPE returns up to 2 results.
 	SolvePnpResult result1(rvecs[0], tvecs[0], reprojErrors.at(0), worldPoints, imagePoints);
 	SolvePnpResult result2(rvecs[1], tvecs[1], reprojErrors.at(1), worldPoints, imagePoints);
-
-	// solvePnpGeneric sorts results by reprojection error
-	assert(result1.pixError <= result2.pixError);
 	
-	double pixMaxError = std::max(3.0, (trapezoid.topright.x - trapezoid.topleft.x + trapezoid.bottomright.y - trapezoid.topleft.y) / 2.0 / 12.0);
-
 	SolvePnpResult* resultUsing = nullptr;
 	
-	if (verboseMode) std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
-		 << "result2: err:" << result1.pixError << " x:" << result2.tvec.at<double>(0) << " y:" << result2.tvec.at<double>(1) << " z:" << result2.tvec.at<double>(2) << "\n"
-		  << "maxError:" << pixMaxError << std::endl;
-
-	if (result1.pixError > pixMaxError) return { false, {}};
-	else if (result2.pixError > pixMaxError) resultUsing = &result1;
-	else {
-
-		// TODO: guess which solution is correct.
-		// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
-		
-		// Temporary solution:
+	if (!result1.valid) {
+		resultUsing = &result2;
+	}
+	else if (!result2.valid) {
 		resultUsing = &result1;
+	}
+	else {
+		// solvePnpGeneric sorts results by reprojection error
+		//assert(result1.pixError <= result2.pixError);
+		if (result1.pixError > result2.pixError) {
+			std::cerr << "SolvePNP results BACKWARDS!" << std::endl;
+			std::swap(result1, result2);
+		}
+		
+		double pixMaxError = std::max(3.0, (trapezoid.topright.x - trapezoid.topleft.x + trapezoid.bottomright.y - trapezoid.topleft.y) / 2.0 / 12.0);
+		
+		if (verboseMode) std::cout << "result1: err:" << result1.pixError << " x:" << result1.tvec.at<double>(0) << " y:" << result1.tvec.at<double>(1) << " z:" << result1.tvec.at<double>(2) << "\n"
+			<< "result2: err:" << result1.pixError << " x:" << result2.tvec.at<double>(0) << " y:" << result2.tvec.at<double>(1) << " z:" << result2.tvec.at<double>(2) << "\n"
+			<< "maxError:" << pixMaxError << std::endl;
+
+		if (result1.pixError > pixMaxError) return { false, {}};
+		else if (result2.pixError > pixMaxError) resultUsing = &result1;
+		else {
+
+			// TODO: guess which solution is correct.
+			// This isn't ambiguity isn't terribly important this year, so this doesn't have to be done.
+			
+			// Temporary solution:
+			resultUsing = &result1;
+		}
 	}
 	
 	if(verboseMode) std::cout << "  Using:" << ((resultUsing == &result1) ? "result1" : "result2") << std::endl;
@@ -430,30 +456,38 @@ ProcessPointsResult processPoints(ContourCorners trapezoid,
 	
 	if (isImageTesting) showDebugPoints(draw);*/
 	
-	return { true, resultUsing->pixError, resultUsing->output, draw };
+	return { true, resultUsing->pixError, { resultUsing->output, draw }};
 }
+
+
 
 VisionTarget doVision(cv::Mat image) {
 	if (isImageTesting) debugDrawImage = &image;
 
     grip::GripHexFinder finder;
     finder.Process(image);
+	oldFinder = finder;
 
     //convert lines to contours
-    std::vector<std::vector<cv::Point> > conts=*(finder.GetConvexHullsOutput());
+    std::vector<std::vector<cv::Point>>& hulls=*(finder.GetConvexHullsOutput());
+	assert(hulls.size() == finder.GetFindContoursOutput()->size());
     
-    if (verboseMode) cout << "Found " << conts.size() << " contours" << std::endl; 
+    if (verboseMode) cout << "Found " << hulls.size() << " contours" << std::endl; 
 	
 	std::vector<ProcessPointsResult> results;   
-    for(auto c : conts){
+    for(unsigned i = 0; i < hulls.size(); ++i){
        //filter out contours that don't make sense
 
         //ensure contour area is at least a certain percent of the image
         double imageArea = image.rows*image.cols;
-        double contArea = cv::contourArea(c);
-        double contPerc = contArea/imageArea;
-        if(contPerc > 0.01 && c.size() > 4){
-            ContourCorners corners = getContourCorners(c);
+        double hullArea = cv::contourArea(hulls[i]);
+        double contPerc = hullArea/imageArea;
+		double areaRatio = cv::contourArea((*finder.GetFindContoursOutput())[i])/hullArea;
+		if (verboseMode) std::cout << "For contour " << i << " contPerc:" << contPerc << " areaRatio:" << areaRatio << std::endl;
+		// Ideal areaRatio is about 11%
+        if(hulls[i].size() > 4 && contPerc > 0.01 && areaRatio <= 0.3){
+			if (verboseMode) std::cout << "using contour " << i << std::endl;
+            ContourCorners corners = getContourCorners(hulls[i]);
 			if (!corners.valid) break;
             std::vector<cv::Point2f> cornerPoints;
             cornerPoints.push_back(corners.topleft); cornerPoints.push_back(corners.topright);
