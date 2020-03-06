@@ -152,6 +152,26 @@ void Streamer::calculateOutputSize(){
 	outputHeight = ceil(uncorrectedHeight/16.0)*16;
 }
 
+void colorConvertBGR2YUYV(cv::Mat& in, cv::Mat& out) {
+	// For some reason, opencv can't convert directly to YUYV (aka YUV 4:2:2 or YUY2), so we must convert to YUV (aka YUV 4:4:4) then downsample that.
+	assert(in.type() == CV_8UC3);
+	cv::Mat badChromaResTile;
+	cv::cvtColor(in, badChromaResTile, cv::COLOR_BGR2YUV, 2);
+	assert(badChromaResTile.type() == CV_8UC3);
+	out.create(in.rows, in.cols, CV_8UC2);
+	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
+		
+		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
+		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
+		
+		uint8_t avgU = (p1[1] + p2[1]) / 2;
+		uint8_t avgV = (p1[2] + p2[2]) / 2;
+		out.at<cv::Vec2b>(y,x) = {p1[0], avgU};
+		out.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
+	}
+	assert(out.type() == CV_8UC2); //Something is horrifically screwed up.
+}
+
 void Streamer::setupFramebuffer() {
 	
 	frameBuffer.create(outputHeight, outputWidth, CV_8UC2);
@@ -166,26 +186,13 @@ void Streamer::setupFramebuffer() {
 	
 	int tileWidth = uncorrectedWidth / tileX, tileHeight = uncorrectedHeight / tileY;
 	
-	cv::Mat badColorTile, badChromaResTile, tile;
+	cv::Mat badColorTile, tile;
 	cv::resize(source, badColorTile, {tileWidth, tileHeight});
 	if(badColorTile.type() != CV_8UC3){
 		std::cerr << "Bad image type for background." << std::endl;
 		return;
 	}
-	// For some reason, opencv can't convert directly to YUYV (aka YUV 4:2:2 or YUY2), so we must convert to YUV (aka YUV 4:4:4) then downsample that.
-	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
-	tile.create(tileHeight, tileWidth, CV_8UC2);
-	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
-		
-		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
-		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
-		
-		uint8_t avgU = (p1[1] + p2[1]) / 2;
-		uint8_t avgV = (p1[2] + p2[2]) / 2;
-		tile.at<cv::Vec2b>(y,x) = {p1[0], avgU};
-		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
-	}
-	assert(tile.type() == CV_8UC2); //Something is horrifically screwed up.
+	colorConvertBGR2YUYV(badColorTile, tile);
 	
 	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
 		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
