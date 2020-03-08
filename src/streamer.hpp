@@ -12,6 +12,38 @@
 #include <string>
 
 // Broadly split into two parts: managing the different cameras, and managing the gStreamer instance.
+
+//-----------------------Displays---------------------------------------
+/* class Display(ThreadedVideoReader* videoReader)
+** Virtual Wrapper class to associate certain cameras with displays and state
+*/
+class Display{
+protected:
+	enum struct pov_state{front,rear}; //Whether the camera view is currently in the "front" or "back" of the robot.
+	ThreadedVideoReader videoReader;
+	virtual void annotateFrame(cv::Mat&) = 0; //Draw an overlay over the frame before sending it to streamer.
+	bool flipped;
+	cv::Mat getMat(){
+		cv::Mat frame=videoReader.getMat();
+		if(flipped){
+			cv::Mat flipped;
+			cv::flip(frame, flipped, -1);
+			for (int x = 0; x < flipped.cols; x += 2) for (int y = 0; y < flipped.rows; ++y) {
+				std::swap(flipped.at<cv::Vec2b>(y, x)[1], flipped.at<cv::Vec2b>(y, x+1)[1]);
+			}
+			frame=flipped;
+		}
+		annotateFrame(frame);
+		return frame;
+	};
+	Display(ThreadedVideoReader* videoReader);
+};
+class VisionCamera : protected Display{};
+class IntakeCamera : protected Display{};
+class ForwardCamera : protected Display{};
+class BackwardCamera : protected Display{};
+class UnknownCamera : protected Display{}; 
+//----------------------Streamer---------------------------------------
 class Streamer {
 	
 	// Common initialization stuff:
@@ -59,6 +91,7 @@ private:
 	std::string loopbackDev;
 	
 	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;
+	std::vector<Display> cameraDisplays; 
 	// Always cameraReaders[0]
 	ThreadedVideoReader* visionCamera;
 	
@@ -139,3 +172,4 @@ void interceptFile(int fromFd, int toFd, std::string prefix);
 
 std::vector<std::string> getVideoDevicesWithString(std::string cmp);
 std::vector<std::string> getLoopbackDevices();
+Display& createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name);
