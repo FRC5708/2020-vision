@@ -8,6 +8,7 @@ protected:
 	ThreadedVideoReader* videoReader;
 	virtual void annotateFrame(cv::Mat& frame) = 0; //Draw an overlay over the frame before sending it to streamer.
 	bool flipped=false;
+public:
 	cv::Mat getMat(){
 		cv::Mat frame=videoReader->getMat();
 		if(flipped){

@@ -249,26 +249,22 @@ void Streamer::pushFrame(int i) {
 			case 0: { //Vision camera
 				
 				cv::Mat visionFrame = frameBuffer.colRange(0, visionCamera->getWidth()).rowRange(0, visionCamera->getHeight());
-				visionCamera->getMat().copyTo(visionFrame);
-
-				// Draw an overlay on the frame before handing it off to gStreamer
-				if (annotateFrame != nullptr) annotateFrame(visionFrame);
-
+				cameraDisplays[0]->getMat().copyTo(visionFrame);
 				visionFrameNotifier(); //New vision frame
 				break;
 			}
 			case 1: //Second camera
-				cameraReaders[1]->getMat().copyTo(frameBuffer
+				cameraDisplays[1]->getMat().copyTo(frameBuffer
 				.colRange(uncorrectedWidth - cameraReaders[1]->getWidth(), uncorrectedWidth)
 				.rowRange(0, cameraReaders[1]->getHeight()));
 				break;
 			case 2: //Third camera
-				cameraReaders[2]->getMat().copyTo(frameBuffer
+				cameraDisplays[2]->getMat().copyTo(frameBuffer
 				.colRange(0, cameraReaders[2]->getWidth())
 				.rowRange(uncorrectedHeight - cameraReaders[2]->getHeight(), uncorrectedHeight));
 				break;
 			case 3: //Fourth camera (untested)
-				cameraReaders[3]->getMat().copyTo(frameBuffer
+				cameraDisplays[3]->getMat().copyTo(frameBuffer
 				.colRange(uncorrectedWidth - cameraReaders[3]->getWidth(), uncorrectedWidth)
 				.rowRange(uncorrectedHeight - cameraReaders[3]->getHeight(), uncorrectedHeight));
 				break;
