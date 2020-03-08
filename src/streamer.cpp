@@ -603,10 +603,34 @@ string Streamer::controlMessage(unsigned int cam_no, string command, string para
 			handlingLaunchRequest=false;
 		}
 		frameLock.unlock();
-	}else if(command == "reset"){
+	}
+	else if (command == "reset") {
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset(true);
 		return "0:RESET";
+	}
+	else if (command == "HUD") {
+		string piece;
+		string state;
+		std::stringstream toParse(parameters);
+		toParse >> piece;
+		toParse >> state;
+	
+		bool success = true;
+		// Set your variables here
+		if (piece == "POV") {
+			//if (state == "front")
+			//if (state == "back")
+			// else success = false
+		}
+		if (piece == "intake") {
+			//if (state == "on")
+			//if (state == "off")
+			//else success = false
+		}
+		else success = false;
+		if (success) return "-1:SUCCESS";
+		else return "-1:INVALID SETTING";
 	}
 	else{
 		status << "-1:Unrecognized command \"" << command << "\"\n";
