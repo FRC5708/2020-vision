@@ -514,6 +514,14 @@ CLEANUP:
 	if(!failed) std::cout << "Wrote gstreamer pid of " << gstreamer_pid << " to file." << std::endl;
 	return !failed;
 }
+// ------------ Display Stuff --------------------------
+std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name){
+	if(camera_name=="C920_99EDB55F") return std::make_unique<Display>(VisionCamera(videoReader));
+	if(camera_name=="C615_603161B0") return std::make_unique<Display>(IntakeCamera(videoReader));
+	if(camera_name=="C525_5FC6DE20") return std::make_unique<Display>(ForwardCamera(videoReader));
+	if(camera_name=="C615_F961A370") return std::make_unique<Display>(BackwardCamera(videoReader));
+	return std::make_unique<Display>(UnknownCamera(videoReader));
+}
 
 // ------------ Control message stuff ------------------
 
