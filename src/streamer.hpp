@@ -34,7 +34,7 @@ public:
 	std::function<void(void)> visionFrameNotifier; 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
 	std::function<void(cv::Mat&)> annotateVisionPoints;
-	std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name);
+	std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const std::string& camera_name);
 
 	// These are used by main() to determine camera calibration parameters
 	std::string visionCameraName;
@@ -60,6 +60,7 @@ private:
 	
 	// Camera device file paths (e.g. /dev/video1)
 	std::vector<std::string> cameraDevs;
+	std::vector<std::string> usedCameraNames;
 	std::string loopbackDev;
 	
 	std::vector<std::unique_ptr<ThreadedVideoReader>> cameraReaders;

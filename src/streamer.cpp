@@ -27,7 +27,7 @@ using std::cout; using std::cerr; using std::endl; using std::string; using std:
 // These are the model numbers of our cameras
 // They are matched with device names from sysfs
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
-vector<string> cameraNames = {
+vector<std::string> allCameraNames = {
 	"C920_99EDB55F", "C615_603161B0", "C525_5FC6DE20", "C615_F961A370"
 };
 
@@ -79,10 +79,10 @@ void Streamer::setupCameras(){
 	}
 
 
-	for (auto& i : cameraNames) {
+	for (auto& i : allCameraNames) {
 		vector<string> namedCameras = getVideoDevicesWithString(i);
 		cameraDevs.insert(cameraDevs.end(), namedCameras.begin(), namedCameras.end());
-		if (visionCameraName.empty() && namedCameras.size() > 0) visionCameraName = i;
+		for (unsigned j = 0; j < namedCameras.size(); ++j) usedCameraNames.push_back(i);
 	}
 	
 	std::cout << "Cameras detected: " << cameraDevs.size() << std::endl;
@@ -96,6 +96,8 @@ void Streamer::setupCameras(){
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		std::cout << "Camera " << i << ": " << cameraDevs[i] << std::endl;
 	}
+	
+	visionCameraName = usedCameraNames[0];
 
 	std::vector<cv::Size2i> targetDims;
 	
@@ -117,7 +119,7 @@ void Streamer::setupCameras(){
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
-		cameraDisplays[i]=createCameraDisplay(cameraReaders[i].get(),cameraNames[i].c_str()); //TODO: Fix me! This will fail unless all 4 cameras are plugged in, or <4 in order.
+		cameraDisplays[i]=createCameraDisplay(cameraReaders[i].get(),usedCameraNames[i]);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 }
@@ -511,11 +513,11 @@ CLEANUP:
 	return !failed;
 }
 // ------------ Display Stuff --------------------------
-std::unique_ptr<Display> Streamer::createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name){
-	if(string(camera_name)=="C920_99EDB55F") return std::make_unique<VisionCamera>(videoReader,annotateVisionPoints);
-	if(string(camera_name)=="C615_603161B0") return std::make_unique<IntakeCamera>(videoReader);
-	if(string(camera_name)=="C525_5FC6DE20") return std::make_unique<ForwardCamera>(videoReader);
-	if(string(camera_name)=="C615_F961A370") return std::make_unique<BackwardCamera>(videoReader);
+std::unique_ptr<Display> Streamer::createCameraDisplay(ThreadedVideoReader* videoReader, const std::string& camera_name){
+	if(camera_name=="C920_99EDB55F") return std::make_unique<VisionCamera>(videoReader,annotateVisionPoints);
+	if(camera_name=="C615_603161B0") return std::make_unique<IntakeCamera>(videoReader);
+	if(camera_name=="C525_5FC6DE20") return std::make_unique<ForwardCamera>(videoReader);
+	if(camera_name=="C615_F961A370") return std::make_unique<BackwardCamera>(videoReader);
 	return std::make_unique<UnknownCamera>(videoReader);
 }
 
