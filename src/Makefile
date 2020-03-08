@@ -1,6 +1,7 @@
 
 COMMON_FLAGS=-pg -Og -Wno-psabi -fopenmp -march=native -mcpu=native -mtune=native
-CXXFLAGS=-ggdb -Wall --std=c++17 -ffast-math $(COMMON_FLAGS) -I/usr/include/opencv4/
+# DO NOT enable -ffast-math! it breaks isnan()
+CXXFLAGS=-ggdb -Wall --std=c++17 $(COMMON_FLAGS) -I/usr/include/opencv4/
 
 
 ODIR=obj

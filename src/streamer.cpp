@@ -28,7 +28,10 @@ using std::cout; using std::cerr; using std::endl; using std::string; using std:
 // They are matched with device names from sysfs
 // Since cameraDevs[0] is always the vision camera, our camera that's most likely to be used for vision comes first
 vector<string> cameraNames = {
-	"C920_99EDB55F", "C615_603161B0", "C615_F961A370", "C525_5FC6DE20"
+	"C920_99EDB55F", "C615_603161B0", "C525_5FC6DE20", "C615_F961A370"
+};
+vector<bool> flipCameras = {
+	true, false, false, true
 };
 
 // --------- Initialization stuff -----------------
@@ -115,7 +118,8 @@ void Streamer::setupCameras(){
 	
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
-			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
+			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i), 
+			flipCameras[i])//Bind callback to relevant id.
 		);
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
@@ -148,6 +152,26 @@ void Streamer::calculateOutputSize(){
 	outputHeight = ceil(uncorrectedHeight/16.0)*16;
 }
 
+void colorConvertBGR2YUYV(cv::Mat& in, cv::Mat& out) {
+	// For some reason, opencv can't convert directly to YUYV (aka YUV 4:2:2 or YUY2), so we must convert to YUV (aka YUV 4:4:4) then downsample that.
+	assert(in.type() == CV_8UC3);
+	cv::Mat badChromaResTile;
+	cv::cvtColor(in, badChromaResTile, cv::COLOR_BGR2YUV, 2);
+	assert(badChromaResTile.type() == CV_8UC3);
+	out.create(in.rows, in.cols, CV_8UC2);
+	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
+		
+		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
+		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
+		
+		uint8_t avgU = (p1[1] + p2[1]) / 2;
+		uint8_t avgV = (p1[2] + p2[2]) / 2;
+		out.at<cv::Vec2b>(y,x) = {p1[0], avgU};
+		out.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
+	}
+	assert(out.type() == CV_8UC2); //Something is horrifically screwed up.
+}
+
 void Streamer::setupFramebuffer() {
 	
 	frameBuffer.create(outputHeight, outputWidth, CV_8UC2);
@@ -162,26 +186,13 @@ void Streamer::setupFramebuffer() {
 	
 	int tileWidth = uncorrectedWidth / tileX, tileHeight = uncorrectedHeight / tileY;
 	
-	cv::Mat badColorTile, badChromaResTile, tile;
+	cv::Mat badColorTile, tile;
 	cv::resize(source, badColorTile, {tileWidth, tileHeight});
 	if(badColorTile.type() != CV_8UC3){
 		std::cerr << "Bad image type for background." << std::endl;
 		return;
 	}
-	// For some reason, opencv can't convert directly to YUYV (aka YUV 4:2:2 or YUY2), so we must convert to YUV (aka YUV 4:4:4) then downsample that.
-	cv::cvtColor(badColorTile, badChromaResTile, cv::COLOR_BGR2YUV, 2);
-	tile.create(tileHeight, tileWidth, CV_8UC2);
-	for (int x = 0; x < badChromaResTile.cols; x += 2) for (int y = 0; y < badChromaResTile.rows; ++y) {
-		
-		auto p1 = badChromaResTile.at<cv::Vec3b>(y,x);
-		auto p2 = badChromaResTile.at<cv::Vec3b>(y,x+1);
-		
-		uint8_t avgU = (p1[1] + p2[1]) / 2;
-		uint8_t avgV = (p1[2] + p2[2]) / 2;
-		tile.at<cv::Vec2b>(y,x) = {p1[0], avgU};
-		tile.at<cv::Vec2b>(y,x+1) = {p2[0], avgV};
-	}
-	assert(tile.type() == CV_8UC2); //Something is horrifically screwed up.
+	colorConvertBGR2YUYV(badColorTile, tile);
 	
 	for (int x = 0; x < tileX; ++x) for (int y = 0; y < tileY; ++y) {
 		tile.copyTo(frameBuffer(cv::Rect2i(x*tileWidth, y*tileHeight, tileWidth, tileHeight)));
@@ -592,10 +603,34 @@ string Streamer::controlMessage(unsigned int cam_no, string command, string para
 			handlingLaunchRequest=false;
 		}
 		frameLock.unlock();
-	}else if(command == "reset"){
+	}
+	else if (command == "reset") {
 		std::cout << "Attempting to reset " << cam_no << "(COMMAND given)" << std::endl;
 		camera->reset(true);
 		return "0:RESET";
+	}
+	else if (command == "HUD") {
+		string piece;
+		string state;
+		std::stringstream toParse(parameters);
+		toParse >> piece;
+		toParse >> state;
+	
+		bool success = true;
+		// Set your variables here
+		if (piece == "POV") {
+			//if (state == "front")
+			//if (state == "back")
+			// else success = false
+		}
+		if (piece == "intake") {
+			//if (state == "on")
+			//if (state == "off")
+			//else success = false
+		}
+		else success = false;
+		if (success) return "-1:SUCCESS";
+		else return "-1:INVALID SETTING";
 	}
 	else{
 		status << "-1:Unrecognized command \"" << command << "\"\n";
