@@ -117,7 +117,7 @@ void Streamer::setupCameras(){
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
-		cameraDisplays[i]=createCameraDisplay(cameraReaders[i].get(),cameraDevs[i].c_str());
+		cameraDisplays[i]=createCameraDisplay(cameraReaders[i].get(),cameraNames[i].c_str()); //TODO: Fix me! This will fail unless all 4 cameras are plugged in, or <4 in order.
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 }

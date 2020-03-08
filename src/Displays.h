@@ -1,4 +1,6 @@
 #include "VideoHandler.hpp"
+#include <iostream>
+
 /* class Display(ThreadedVideoReader* videoReader)
 ** Virtual Wrapper class to associate certain cameras with displays and state
 */
@@ -25,8 +27,12 @@ public:
 };
 class VisionCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
+	std::function<void(cv::Mat& frame)> annotateVisionFrame;
     public:
-        VisionCamera(ThreadedVideoReader* reader, std::function<void(cv::Mat& drawOn)>){this->videoReader=reader;}
+        VisionCamera(ThreadedVideoReader* reader, std::function<void(cv::Mat& drawOn)> annotateVisionFrame){
+			this->videoReader=reader;
+			this->annotateVisionFrame=annotateVisionFrame;
+			}
 };
 class IntakeCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
