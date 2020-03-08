@@ -117,7 +117,7 @@ void Streamer::setupCameras(){
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
 			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
-		cameraDisplays.push_back(createCameraDisplay(cameraReaders[i].get(),cameraDevs[i].c_str()));
+		cameraDisplays[i]=createCameraDisplay(cameraReaders[i].get(),cameraDevs[i].c_str());
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 }
@@ -512,11 +512,11 @@ CLEANUP:
 }
 // ------------ Display Stuff --------------------------
 std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name){
-	if(camera_name=="C920_99EDB55F") return std::make_unique<Display>(VisionCamera(videoReader));
-	if(camera_name=="C615_603161B0") return std::make_unique<Display>(IntakeCamera(videoReader));
-	if(camera_name=="C525_5FC6DE20") return std::make_unique<Display>(ForwardCamera(videoReader));
-	if(camera_name=="C615_F961A370") return std::make_unique<Display>(BackwardCamera(videoReader));
-	return std::make_unique<Display>(UnknownCamera(videoReader));
+	if(string(camera_name)=="C920_99EDB55F") return std::make_unique<VisionCamera>(videoReader);
+	if(string(camera_name)=="C615_603161B0") return std::make_unique<IntakeCamera>(videoReader);
+	if(string(camera_name)=="C525_5FC6DE20") return std::make_unique<ForwardCamera>(videoReader);
+	if(string(camera_name)=="C615_F961A370") return std::make_unique<BackwardCamera>(videoReader);
+	return std::make_unique<UnknownCamera>(videoReader);
 }
 
 // ------------ Control message stuff ------------------
