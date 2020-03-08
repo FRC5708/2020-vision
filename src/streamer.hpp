@@ -123,7 +123,11 @@ public:
 	**  UNPARSABLE MESSAGE
 	** RETNO is 0 upon success, something else upon failure (detrmined by videoHandler functions). The STATUS MESSAGE *SHOULD* return more information.
 	
-	Available control messages are: reset, resolution <width> <height>
+	Available control messages are: 
+	reset
+	resolution <width> <height>
+	HUD POV <front|back>
+	HUD intake <on|off>
 	*/
 	std::string parseControlMessage(std::string command, std::string arguments); 
 private:
