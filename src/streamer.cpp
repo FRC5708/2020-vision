@@ -30,9 +30,6 @@ using std::cout; using std::cerr; using std::endl; using std::string; using std:
 vector<string> cameraNames = {
 	"C920_99EDB55F", "C615_603161B0", "C525_5FC6DE20", "C615_F961A370"
 };
-vector<bool> flipCameras = {
-	true, false, false, true
-};
 
 // --------- Initialization stuff -----------------
 Streamer::Streamer(std::function<void(void)> callback, std::function<void(cv::Mat&)> annotateFrame)
@@ -115,12 +112,12 @@ void Streamer::setupCameras(){
 
 	newFrames.resize(cameraDevs.size());
 	cameraFrameCounts.resize(cameraDevs.size());
-	
+	cameraDisplays.resize(cameraDevs.size());
 	for (unsigned int i = 0; i < cameraDevs.size(); ++i) {
 		cameraReaders.push_back(std::make_unique<ThreadedVideoReader>(
-			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i), 
-			flipCameras[i])//Bind callback to relevant id.
+			targetDims[i].width, targetDims[i].height, cameraDevs[i].c_str(),std::bind(&Streamer::pushFrame,this,i))//Bind callback to relevant id.
 		);
+		cameraDisplays.push_back(createCameraDisplay(cameraReaders[i].get(),cameraDevs[i].c_str()));
 		if (i == 0) visionCamera = cameraReaders[0].get();
 	}
 }

@@ -50,7 +50,6 @@ protected: //Should not be directly called. (ThreadedVideoReader uses these)
 	const std::string deviceFile; //Name of camera
 
 public:
-	bool flipImage = false;
 	virtual void reset(bool hard = false); //Actually resets the camera. (Should this be public? This should probably not be called willy-nilly, but it's useful.)
 	VideoReader(int width, int height, const char* file);
 	virtual ~VideoReader();
@@ -87,7 +86,7 @@ protected:
 bool grabFrame(); //Thread-safe wrapper for VideoReader::grabFrame()
 
 public:
-	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback, bool flipped = false);
+	ThreadedVideoReader(int width, int height,const char* file, std::function<void(void)> newFrameCallback);
 	virtual ~ThreadedVideoReader() {}; //Does nothing; required to compile?
 	int setResolution(unsigned int width, unsigned int height);
 	void reset(bool hard = false) override; //Wrapper for VideoReader reset(). (Should this be public? This should probably not be called willy-nilly, but it's useful.)
