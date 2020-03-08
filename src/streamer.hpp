@@ -33,7 +33,8 @@ public:
 	//visionFrameNotifier is a callback function whose purpose is to let our vision thread know that it has new data.
 	std::function<void(void)> visionFrameNotifier; 
 	// Every frame from the vision camera will be passed to this function before being passed to gStreamer.
-	void (*annotateFrame)(cv::Mat) = nullptr;
+	std::function<void(cv::Mat&)> annotateVisionPoints;
+	std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name);
 
 	// These are used by main() to determine camera calibration parameters
 	std::string visionCameraName;
@@ -147,4 +148,3 @@ void interceptFile(int fromFd, int toFd, std::string prefix);
 
 std::vector<std::string> getVideoDevicesWithString(std::string cmp);
 std::vector<std::string> getLoopbackDevices();
-std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name);

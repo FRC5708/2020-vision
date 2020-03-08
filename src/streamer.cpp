@@ -32,8 +32,8 @@ vector<string> cameraNames = {
 };
 
 // --------- Initialization stuff -----------------
-Streamer::Streamer(std::function<void(void)> callback, std::function<void(cv::Mat&)> annotateFrame)
-: visionFrameNotifier(callback) {
+Streamer::Streamer(std::function<void(void)> callback, std::function<void(cv::Mat&)> annotateVisionPoints)
+: visionFrameNotifier(callback),annotateVisionPoints(annotateVisionPoints) {
 	gstreamer_pid=get_previous_gstreamer_pid();
 }
 void Streamer::start() {
@@ -511,8 +511,8 @@ CLEANUP:
 	return !failed;
 }
 // ------------ Display Stuff --------------------------
-std::unique_ptr<Display> createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name){
-	if(string(camera_name)=="C920_99EDB55F") return std::make_unique<VisionCamera>(videoReader);
+std::unique_ptr<Display> Streamer::createCameraDisplay(ThreadedVideoReader* videoReader, const char* camera_name){
+	if(string(camera_name)=="C920_99EDB55F") return std::make_unique<VisionCamera>(videoReader,annotateVisionPoints);
 	if(string(camera_name)=="C615_603161B0") return std::make_unique<IntakeCamera>(videoReader);
 	if(string(camera_name)=="C525_5FC6DE20") return std::make_unique<ForwardCamera>(videoReader);
 	if(string(camera_name)=="C615_F961A370") return std::make_unique<BackwardCamera>(videoReader);

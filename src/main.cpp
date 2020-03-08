@@ -49,8 +49,8 @@ auto currentFrameTime = timing_clock.now();
 std::mutex waitMutex; 
 std::condition_variable condition;
 void visionFrameNotifier(); //Declared later
-void annotateFrame(cv::Mat&); //Declared later
-Streamer streamer(visionFrameNotifier,annotateFrame);
+void annotateVisionPoints(cv::Mat&); //Declared later
+Streamer streamer(visionFrameNotifier,annotateVisionPoints);
 
 //Callback function passed into ControlPacketReceiver.
 // recieves enable/disable signals from the RIO to conserve thermal capacity.
@@ -201,12 +201,12 @@ bool isTargetLocked(){
 	return true;
 }
 
-/* void annotateFrame(cv::Mat& drawOn)
+/* void annotateVisionPoints(cv::Mat& drawOn)
 ** Draws the currently-detected vision overlay points on top of the matrix passed in.
 ** Draws targeting reticle that is green when isTargetLocked() returns true.
 ** Also overlays a spinning-circle thingy to make it obvious that the stream is alive.
 */
-void annotateFrame(cv::Mat& drawOn) {
+void annotateVisionPoints(cv::Mat& drawOn) {
 
 	//Draw vision points
 	drawVisionPoints(lastResults.drawPoints, drawOn);

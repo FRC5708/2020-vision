@@ -26,7 +26,7 @@ public:
 class VisionCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
     public:
-        VisionCamera(ThreadedVideoReader* reader){this->videoReader=reader;}
+        VisionCamera(ThreadedVideoReader* reader, std::function<void(cv::Mat& drawOn)>){this->videoReader=reader;}
 };
 class IntakeCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
