@@ -1,0 +1,128 @@
+HOW TO CROSS COMPILE OPENCV FOR THE RASPBERRY PI
+
+NOTE: This is a text file rather than a shell script because you're probably going to have to change a bunch of stuff because it won't work anymore for some reason.
+
+Requires a Linux system. Tested on Ubuntu 19.04. Don't try this on macOS unless you feel like configuring and compiling gcc-cross yourself...
+
+Download opencv-4.x.x and opencv_contrib 4.x.x and unpack them (Replace 4.x.x with your version.)
+Download Raspbian image (you will need desktop for python bindings)
+
+Install compilers:
+sudo apt install gcc-8-arm-linux-gnueabihf g++-8-arm-linux-gnueabihf pkg-config-arm-linux-gnueabihf
+
+Make sure to install the same compiler version that the Raspbian image has. Currently it is 8.
+
+You should UNINSTALL the version of glibc that the cross compiler installed, in order to use Raspbian's version and avoid a mismatch:
+
+sudo dpkg -r --force-depends libc6-dev-armhf-cross libstdc++-8-dev-armhf-cross
+
+Double-click the raspbian image to mount it.
+
+cd opencv-4.x.x
+
+The Raspbian image contains some absolute symlinks to libraries, which will cause the build to fail. Additionally, you must add a few symlinks that the cross-compiler now needs because we deleted part of the toolchain above. Run these commands:
+
+mkdir mount_garbage
+cd mount_garbage
+mkdir overlay workdir combined
+
+Then, copy and paste the below into a shell script and run it as root:
+
+#!/bin/bash
+ 
+sudo mount -t overlay overlay -o lowerdir=/path/to/already/mounted/raspbian/rootfs/,upperdir=overlay/,workdir=workdir ./combined/
+
+cd combined
+find . -lname '/*' |
+while read l ; do
+  echo ln -sf $(echo $(echo $l | sed 's|/[^/]*|/..|g')$(readlink $l) | sed 's/.....//') $l
+done |
+sh
+
+cd usr/lib/arm-linux-gnueabihf
+ln -s libasan.so.5 libasan.so
+ln -s libatomic.so.1 libatomic.so
+ln -s libcc1.so.0 libcc1.so
+ln -s libgcc_s.so
+ln -s libgomp.so.1 libgomp.so
+ln -s liblto_plugin.so.0.0.0 liblto_plugin.so
+ln -s libstdc++.so.6 libstdc++.so
+ln -s libubsan.so.1 libubsan.so
+
+
+
+
+In order to convince the build system to look for libraries in the raspbian image, you must make modifications to the cmake toolchain file. Edit platforms/linux/arm-gnueabi.toolchain.cmake and add at the end:
+
+
+set(CMAKE_C_COMPILER "arm-linux-gnueabihf-gcc-8")
+set(CMAKE_CXX_COMPILER "arm-linux-gnueabihf-g++-8")
+
+set(MORELIBS "--sysroot=${ARM_LINUX_SYSROOT}")
+
+set(CMAKE_SHARED_LINKER_FLAGS "${MORELIBS} ${CMAKE_SHARED_LINKER_FLAGS}")
+set(CMAKE_MODULE_LINKER_FLAGS "${MORELIBS} ${CMAKE_MODULE_LINKER_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS    "${MORELIBS} ${CMAKE_EXE_LINKER_FLAGS}")
+
+set(MOREINCLUDES "${MORELIBS}")
+
+# yes, there's supposed to be a space before the equals signs
+# replace all the 8s with the folder that actually exists in those locations on your Raspbian image
+set(CMAKE_CXX_FLAGS "-g ${MOREINCLUDES} -isystem =/usr/include/c++/8 -isystem =/usr/include/arm-linux-gnueabihf/c++/8 -isystem =/usr/include/c++/8/backward -isystem =/usr/lib/gcc/arm-linux-gnueabihf/8/ ${CMAKE_CXX_FLAGS}")
+set(CMAKE_C_FLAGS   "-g ${MOREINCLUDES} ${CMAKE_C_FLAGS}")
+
+set(ENV{PKG_CONFIG_PATH} "/usr/share/arm-linux-gnueabihf/pkgconfig:${ARM_LINUX_SYSROOT}/usr/lib/pkgconfig")
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "${ARM_LINUX_SYSROOT}")
+set(PKG_CONFIG_EXECUTABLE "/usr/bin/arm-linux-gnueabihf-pkg-config")
+
+#this might not be necessary
+set(ENV{LD_LIBRARY_PATH} "${ARM_LINUX_SYSROOT}/usr/lib")
+set(ENV{C_INCLUDE_PATH} "${ARM_LINUX_SYSROOT}/usr/include")
+set(ENV{CPLUS_INCLUDE_PATH} "${ARM_LINUX_SYSROOT}/usr/include")
+
+
+
+
+Then run cmake. Run this from the opencv-4.x.x directory:
+
+mkdir -p build/package-product/opencv-4.x.x-5708cross/usr/
+cd build
+
+export SYSROOT=`realpath ../mount_garbage/combined`
+
+cmake -D CMAKE_INSTALL_PREFIX=./package-product/opencv-4.x.x-5708cross/usr/ \
+-D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-4.x.x/modules/ \
+-D OPENCV_ENABLE_NONFREE=ON \
+-D CMAKE_BUILD_TYPE=RELWITHDEBINFO \
+-D CMAKE_TOOLCHAIN_FILE=../platforms/linux/arm-gnueabi.toolchain.cmake \
+-D ARM_LINUX_SYSROOT=$SYSROOT \
+-DENABLE_VFPV3=ON -DENABLE_NEON=ON -DWITH_TBB=ON -DBUILD_TBB=ON \
+-DOPENCV_GENERATE_PKGCONFIG=ON \
+-DPYTHON2_INCLUDE_PATH=$SYSROOT/usr/include/python2.7 \
+-DPYTHON2_NUMPY_INCLUDE_DIRS=$SYSROOT/usr/include/python2.7/numpy \
+-DPYTHON3_INCLUDE_PATH=$SYSROOT/usr/include/python3.7 \
+-DPYTHON3_NUMPY_INCLUDE_DIRS=$SYSROOT/usr/include/python3.7/numpy ..
+
+
+If you use relative paths for the location of the Raspbian image, cmake will fail in strange ways. 
+
+Replace 8 with your number of cores:
+nice make -j8 install
+
+Create package-product/opencv-4.x.x-5708cross/DEBIAN/control and put something like this in it:
+Package: opencv4
+Maintainer: FRC Team 5708
+Description: OpenCV 4, built against Raspian Buster
+Version: 4.x.x-5708cross
+Priority: optional
+Architecture: armhf
+
+Build the package:
+cd package-product
+dpkg-deb --build opencv-4.x.x-5708cross
+
+To build static libraries, make another build folder and call cmake with the options -DBUILD_SHARED_LIBS=OFF -D BUILD_EXAMPLES=OFF. (You might also want to disable Python bindings to save space). In the DEBIAN/control file, name it something different (i.e. opencv4-static). And change the install prefix to something like opt/opencv4-static/ instead of usr/ . Note that if you do this, you will need to modify the packageconfig file (PREFIX/lib/pkgconfig/opencv4.pc) to contain the right prefix.
+
+To test the package without the RPi handy, see https://wiki.debian.org/QemuUserEmulation, especially the section at the bottom titled "Appendix: chrooting into target file systems".
+
+

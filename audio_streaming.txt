@@ -1,0 +1,7 @@
+For shits and crackles:
+
+On raspberry pi (assuming C920 camera is plugged in): 
+gst-launch-1.0 alsasrc device="default:CARD=C920" ! audioconvert ! rtpL24pay ! udpsink host=<computer's ip address> port=5000
+
+On computer:
+gst-launch-1.0 udpsrc port=5000 caps="application/x-rtp,channels=(int)2,format=(string)S16LE,media=(string)audio,payload=(int)96,clock-rate=(int)44100,encoding-name=(string)L24" ! rtpjitterbuffer latency=20 ! rtpL24depay ! audioconvert ! autoaudiosink sync=false
