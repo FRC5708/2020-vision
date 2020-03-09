@@ -4,7 +4,7 @@ void overlayPOV(cv::Mat& frame,pov_state state){
     if(state!=pov_state::neither){
         cv::putText(
             frame,
-            (state==pov_state::front ? "-Front-" : "-Rear"),
+            (state==pov_state::front ? "-Front-" : "-Rear-"),
             {50,50},
             1,
             2,

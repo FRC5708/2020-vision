@@ -26,7 +26,11 @@ public:
 			}
 			frame=flipped;
 		}
-		annotateFrame(frame);
+		try{
+			annotateFrame(frame);
+		}catch(std::exception& e){
+			std::cerr << "annotateFrame threw " << e.what() << std::endl;
+		}
 		return frame;
 	};
 	void setPOV(pov_state reference){
