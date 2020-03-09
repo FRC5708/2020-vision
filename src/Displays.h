@@ -37,7 +37,7 @@ public:
 		//Set pov to reference. If pov is neither, do nothing.
 		if(pov!=pov_state::neither) pov=reference;
 	}
-	string getName(){
+	std::string getName(){
 		return videoReader->getName();
 	}
 };

@@ -523,7 +523,7 @@ std::unique_ptr<Display> Streamer::createCameraDisplay(ThreadedVideoReader* vide
 void Streamer::setPOV(pov_state reference){
 	for(auto &i : cameraDisplays){
 		i->setPOV(reference);
-		std::cout << "Set '" << i->getName() << "' POV to " << reference << std::endl;
+		std::cout << "Set '" << i->getName() << "' POV to " << (int) reference << std::endl;
 	}
 }
 // ------------ Control message stuff ------------------
