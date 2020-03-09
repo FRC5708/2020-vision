@@ -62,6 +62,7 @@ public:
 	void setExposure(int value) { setExposureVals(false, value); }
 	void setAutoExposure() { setExposureVals(true, 50); } // Turns on auto-exposure.
 	class NotInitializedException : public std::exception {};
+	const std::string getName(){return deviceFile;}
 };
 
 /* class ThreadedVideoReader: public VideoReader

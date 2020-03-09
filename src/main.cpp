@@ -61,13 +61,12 @@ string parseControlMessage(string message) {
 	std::stringstream status=std::stringstream("");
 
 	unsigned int indexOfDelimiter=message.find(':');
-	if (indexOfDelimiter == string::npos 
-	&& message[message.length() - 1] == '\n') {
+	if (indexOfDelimiter == string::npos && message[message.length() - 1] == '\n') {
 		indexOfDelimiter = message.length() - 1;
 	}
 	std::string command=message.substr(0,indexOfDelimiter);
-		if (command == "reset" || command == "resolution") {
-			if(indexOfDelimiter >= message.length()){
+	if (command == "reset" || command == "resolution") {
+		if(indexOfDelimiter >= message.length()){
 			//There just isn't a : in there.
 			return "UNPARSABLE MESSAGE (No colon-seperator)\n";
 		}
@@ -75,16 +74,38 @@ string parseControlMessage(string message) {
 		if(arguments[arguments.length()-1]=='\n'){
 			arguments=arguments.substr(0,arguments.length()-1); //Chop the newline off
 		}
-		
 		return streamer.parseControlMessage(command, arguments);
 	}
 	else if (command == "visionEnable") visionEnabled = true;
 	else if (command == "visionDisable") visionEnabled = false;
 	else if (command == "lowExposureOn") streamer.setLowExposure(true);
 	else if (command == "lowExposureOff") streamer.setLowExposure(false);
-	else return "Invalid command " + command + "\n";
+	else if (command.substr(0,3) == "HUD") {
+		string piece;
+		string state;
+		std::stringstream toParse(command.substr(3,string::npos));
+		toParse >> piece;
+		toParse >> state;
+		if(!toParse.good()) return "-1:PARSE FAILURE";
+		// Set your variables here
+		if (piece == "POV") {
+			if (state == "front") streamer.setPOV(pov_state::front);
+			else if (state == "back") streamer.setPOV(pov_state::rear);
+			else return ("-1:Invalid POV state '" + state + "'");
+		}
+		else if (piece == "intake") {
+			//if (state == "on")
+			//if (state == "off")
+			//else success = false
+			return "-1: Command unimplemented.";
+		}else return "-1:INVALID PIECE";
+
+		return "0:SUCCESS";
+		
+	}
+	else return "-1:Invalid command " + command + "\n";
 	
-	return "Success\n";
+	return "0:Success\n";
 }
 
 void VisionThread() {
@@ -211,16 +232,6 @@ void annotateVisionPoints(cv::Mat& drawOn) {
 	//Draw vision points
 	drawVisionPoints(lastResults.drawPoints, drawOn);
 
-	cv::putText(
-		drawOn,
-		"-Vision-",
-		{50,50},
-		1,
-		2,
-		{0,128},
-		1,
-		8
-	);
 
 	//Draw targeting reticle
 	{
@@ -234,18 +245,6 @@ void annotateVisionPoints(cv::Mat& drawOn) {
 		);
 	}
 
-	// draw thing to see if camera is updating
-	{
-		static std::chrono::steady_clock::time_point beginTime = timing_clock.now();
-
-		// one revolution per second
-		double angle = 2*M_PI * 
-		std::chrono::duration_cast<std::chrono::duration<double>>(timing_clock.now() - beginTime).count();
-		cv::line(drawOn, 
-		{ drawOn.cols/2, drawOn.rows/2 }, 
-		{ (int) round(drawOn.cols/2 * (1 - sin(angle))), (int) round(drawOn.rows/2 * (1 - cos(angle))) },
-		{ 0, 0 });
-	}
 }
 void visionFrameNotifier(){
 // This function is called every new frame we get from the vision camera.

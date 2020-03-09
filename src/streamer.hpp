@@ -43,6 +43,7 @@ public:
 	
 	bool lowExposure = false;
 	void setLowExposure(bool value);
+	void setPOV(pov_state reference);
 	
 private:
 	// All the camera streams go into this buffer, then it's pushed to the VideoWriter
