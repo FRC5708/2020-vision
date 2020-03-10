@@ -36,7 +36,7 @@ public:
 	};
 	void setPOV(pov_state reference){
 		//Set pov to reference. If pov is neither, do nothing.
-		if(pov!=pov_state::neither){
+		if(pov!=pov_state::neither && default_pov!=pov_state::neither){
 			if(default_pov==pov_state::front) pov=reference; //If default is forward, match reference.
 			else if(reference==pov_state::front) pov=pov_state::rear; //Otherwise match it's opposite.
 			else pov=pov_state::front;
