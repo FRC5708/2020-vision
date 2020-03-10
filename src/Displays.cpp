@@ -5,10 +5,10 @@ void overlayPOV(cv::Mat& frame,pov_state state){
         cv::putText(
             frame,
             (state==pov_state::front ? "-Front-" : "-Rear-"),
-            {50,50},
+            {0,20},
             1,
             2,
-            {0,128},
+            {255,255},
             1,
             8
         );
@@ -16,6 +16,7 @@ void overlayPOV(cv::Mat& frame,pov_state state){
 }
 void VisionCamera::annotateFrame(cv::Mat& frame){
     annotateVisionFrame(frame);
+    overlayPOV(frame,this->pov);
 
     // draw thing to see if camera is updating
 	{
@@ -30,6 +31,12 @@ void VisionCamera::annotateFrame(cv::Mat& frame){
 		{ 0, 0 });
 	}
 } 
-void IntakeCamera::annotateFrame(cv::Mat& frame){} 
-void ForwardCamera::annotateFrame(cv::Mat& frame){} 
-void BackwardCamera::annotateFrame(cv::Mat& frame){} 
+void IntakeCamera::annotateFrame(cv::Mat& frame){
+     overlayPOV(frame,this->pov);
+} 
+void ForwardCamera::annotateFrame(cv::Mat& frame){
+     overlayPOV(frame,this->pov);
+} 
+void BackwardCamera::annotateFrame(cv::Mat& frame){
+     overlayPOV(frame,this->pov);
+} 

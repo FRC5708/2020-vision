@@ -11,7 +11,8 @@ enum struct pov_state{front,rear,neither}; //Whether the camera view is currentl
 
 class Display{
 protected:
-	pov_state pov=pov_state::neither;
+	pov_state pov=pov_state::front;
+	pov_state default_pov=pov_state::neither;
 	ThreadedVideoReader* videoReader;
 	virtual void annotateFrame(cv::Mat& frame) = 0; //Draw an overlay over the frame before sending it to streamer.
 	bool flipped=false;
@@ -35,7 +36,11 @@ public:
 	};
 	void setPOV(pov_state reference){
 		//Set pov to reference. If pov is neither, do nothing.
-		if(pov!=pov_state::neither) pov=reference;
+		if(pov!=pov_state::neither){
+			if(default_pov==pov_state::front) pov=reference; //If default is forward, match reference.
+			else if(reference==pov_state::front) pov=pov_state::rear; //Otherwise match it's opposite.
+			else pov=pov_state::front;
+		}
 	}
 	std::string getName(){
 		return videoReader->getName();
@@ -47,7 +52,7 @@ class VisionCamera : public Display{
 	std::chrono::steady_clock timing_clock;
     public:
         VisionCamera(ThreadedVideoReader* reader, std::function<void(cv::Mat& drawOn)> annotateVisionFrame){
-			pov=pov_state::front;
+			default_pov=pov_state::front;
 			this->videoReader=reader;
 			this->annotateVisionFrame=annotateVisionFrame;
 		}
@@ -56,7 +61,7 @@ class IntakeCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
     public:
         IntakeCamera(ThreadedVideoReader* reader){
-			pov=pov_state::rear;
+			default_pov=pov_state::rear;
 			this->videoReader=reader;
 			flipped=true;
 		}
@@ -65,7 +70,7 @@ class ForwardCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
     public:
         ForwardCamera(ThreadedVideoReader* reader){
-			pov=pov_state::front;
+			default_pov=pov_state::front;
 			this->videoReader=reader;
 		}
 };
@@ -73,7 +78,7 @@ class BackwardCamera : public Display{
     void annotateFrame(cv::Mat& frame) override;
     public:
         BackwardCamera(ThreadedVideoReader* reader){
-			pov=pov_state::rear;
+			default_pov=pov_state::rear;
 			this->videoReader=reader;
 		}
 };

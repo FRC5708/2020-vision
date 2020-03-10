@@ -86,7 +86,8 @@ string parseControlMessage(string message) {
 		std::stringstream toParse(command.substr(3,string::npos));
 		toParse >> piece;
 		toParse >> state;
-		if(!toParse.good()) return "-1:PARSE FAILURE";
+		std::cout << "@PIECE: " << piece << "@STATE: " << state << std::endl;
+		if(toParse.fail()) return "-1:PARSE FAILURE";
 		// Set your variables here
 		if (piece == "POV") {
 			if (state == "front") streamer.setPOV(pov_state::front);
