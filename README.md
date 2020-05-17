@@ -1,7 +1,5 @@
 # FRC Team 5708's camera and vision code for Infinite Recharge
 
-Right now it's just a fork of the 2019 repo
-
 ## 	Streaming how to
 
 Launch the start_steaming.sh script from a unix shell (WSL works). 
@@ -12,7 +10,7 @@ The second window (if second camera is plugged in) takes longer to open. Wait at
 
 ## Overview
 
-This program runs on a Raspberry Pi. It streams video from 2 cameras to the driver station, encoding it in H.264, which gives much higher resolution and framerate and lower bandwidth usage than the Motion JPEG which is usually used in FRC. It intercepts one of the video feeds to run vision processing on it (and draw feedback from the vision system on it).
+This program runs on a Raspberry Pi. It streams video from 1-4 cameras to the driver station, encoding it in H.264, which gives much higher resolution and framerate and lower bandwidth usage than the Motion JPEG which is usually used in FRC. It intercepts one of the video feeds to run vision processing on it (and draw feedback from the vision system on it).
 
 And, of course, it's filled with caveats. Below is an overview of the implementation.
 
